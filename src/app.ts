@@ -8,6 +8,7 @@ import {
 import requestsRouter from "./routes/requests.routes.js";
 import donorsRouter from "./routes/donors.routes.js";
 import notificationsRouter from "./routes/notifications.routes.js";
+import adminRouter from "./routes/admin.routes.js";
 
 /**
  * Create and configure Express application
@@ -83,9 +84,11 @@ export const createApp = (): Application => {
   // Notifications Routes (Phase 5d)
   app.use("/api/notifications", notificationsRouter);
 
+  // Admin Routes (Phase 5e)
+  app.use("/api/admin", adminRouter);
+
   // TODO: Mount additional route handlers here as they are implemented
   // app.use('/api/users', usersRouter);
-  // app.use('/api/admin', adminRouter);
   // app.use('/api/contact', contactRouter);
 
   // ============================================================================
