@@ -1,7 +1,7 @@
 /**
- * Blood Requests Controller (Phase 5a)
- * Implements CRUD + status transitions with validation, pagination, masking, and admin logging
- * Requirements: 20.5-20.9, 20.16-20.19, 7.1-7.12, 3.1-3.9, 5's table rows, 4.1-4.4
+ * Blood Requests Controller (Phase 5a + 5b)
+ * Implements CRUD + status transitions + respond/responses workflow + related requests
+ * Requirements: 20.5-20.9, 20.16-20.19, 7.1-7.12, 3.1-3.9, 5's table rows, 4.1-4.4, 6.1-6.11, 14.1-14.6
  */
 
 import type { Request, Response } from "express";
@@ -26,7 +26,15 @@ import type {
   UpdateRequestStatusInput,
   ListRequestsQuery,
 } from "../validators/request.validator.js";
-import { RequestStatus, Urgency } from "../types/shared.js";
+import type {
+  CreateResponseInput,
+  UpdateResponseStatusInput,
+} from "../validators/response.validator.js";
+import { RequestStatus, Urgency, ResponseStatus } from "../types/shared.js";
+import { evaluateEligibility, getIneligibilityMessage } from "../services/eligibility.service.js";
+import { notifyNewResponse, notifyResponseStatusChange } from "../services/notification.service.js";
+import type { Response as DonorResponse } from "../types/models/Response.js";
+import type { BloodGroup } from "../types/shared.js";
 
 // Extend Express Request type to include validated data
 declare module "express" {
@@ -575,6 +583,558 @@ export async function deleteBloodRequest(
     });
   } catch (error) {
     console.error(`Error deleting blood request ${id}:`, error);
+    throw error;
+  }
+}
+
+
+// ============================================================================
+// Phase 5b: Respond/Responses Workflow + Related Requests
+// ============================================================================
+
+// ============================================================================
+// Respond to Blood Request (POST /api/requests/:id/respond)
+// ============================================================================
+
+/**
+ * Donor responds to a blood request (Req 6.1-6.3, 6.10-6.11)
+ * - Auth required, donor only
+ * - Runs eligibility check first
+ * - Auto-transitions request to "in_progress" on first response (Req 3.2)
+ * - Notifies request owner (Req 9.4)
+ * - Max 50 responses per request
+ */
+export async function respondToBloodRequest(
+  req: Request<{ id: string }, {}, CreateResponseInput>,
+  res: Response
+): Promise<void> {
+  const sessionUser = req.sessionUser!;
+  const { id: requestId } = req.params;
+  const { message } = req.body;
+
+  // Validate ObjectId
+  if (!ObjectId.isValid(requestId)) {
+    throw createValidationError("Invalid request ID format");
+  }
+
+  try {
+    const requestsCollection = getBloodRequestsCollection();
+    const responsesCollection = getResponsesCollection();
+
+    // Get the blood request
+    const request = await requestsCollection.findOne({
+      _id: new ObjectId(requestId),
+    });
+
+    if (!request) {
+      throw createNotFoundError("Blood request", requestId);
+    }
+
+    // Donor cannot respond to their own request
+    if (request.userId.toString() === sessionUser.id) {
+      throw createValidationError(
+        "You cannot respond to your own blood request"
+      );
+    }
+
+    // Only allow donors to respond
+    if (!sessionUser.isDonor) {
+      throw createForbiddenError(
+        "Only registered donors can respond to blood requests. Please update your profile to register as a donor.",
+        { userId: sessionUser.id }
+      );
+    }
+
+    // Check if request is still open or in_progress
+    if (
+      request.status !== RequestStatus.OPEN &&
+      request.status !== RequestStatus.IN_PROGRESS
+    ) {
+      throw createValidationError(
+        `Cannot respond to a ${request.status} request. Only open or in-progress requests accept responses.`
+      );
+    }
+
+    // Check for duplicate response from same donor
+    const existingResponse = await responsesCollection.findOne({
+      requestId: request._id,
+      userId: new ObjectId(sessionUser.id),
+    });
+
+    if (existingResponse) {
+      throw createValidationError(
+        "You have already responded to this blood request"
+      );
+    }
+
+    // Check max responses limit (Req 6.10-6.11)
+    const responseCount = await responsesCollection.countDocuments({
+      requestId: request._id,
+    });
+
+    if (responseCount >= 50) {
+      throw createValidationError(
+        "This request has reached the maximum number of responses (50). No more responses can be accepted."
+      );
+    }
+
+    // Run eligibility check (Req 6.1)
+    const eligibilityResult = evaluateEligibility({
+      donor: {
+        bloodGroup: sessionUser.bloodGroup,
+        lastDonationDate: sessionUser.lastDonationDate,
+        isDonor: sessionUser.isDonor,
+        // Note: age and weight are not available in session user
+        // Could be added if needed for strict validation
+      },
+      requestedBloodGroup: request.bloodGroup,
+    });
+
+    if (!eligibilityResult.eligible) {
+      const errorMessage = getIneligibilityMessage(
+        eligibilityResult.reason!,
+        eligibilityResult.daysRemaining
+      );
+      throw createValidationError(errorMessage, {
+        reason: eligibilityResult.reason,
+        daysRemaining: eligibilityResult.daysRemaining,
+      });
+    }
+
+    // Create the response (Req 6.2-6.3)
+    const now = new Date();
+    const donorResponse: DonorResponse = {
+      _id: new ObjectId(),
+      requestId: request._id,
+      userId: new ObjectId(sessionUser.id),
+      status: ResponseStatus.OFFERED,
+      ...(message && { message }), // Only include message if provided
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await responsesCollection.insertOne(donorResponse);
+
+    // Auto-transition to IN_PROGRESS on first response (Req 3.2)
+    const autoTransitionResult =
+      requestStateMachine.autoTransitionOnFirstResponse(request);
+
+    if (autoTransitionResult.shouldTransition && autoTransitionResult.newStatus) {
+      await requestsCollection.updateOne(
+        { _id: request._id },
+        {
+          $set: {
+            status: autoTransitionResult.newStatus,
+            updatedAt: now,
+          },
+        }
+      );
+    }
+
+    // Notify request owner (Req 9.4)
+    notifyNewResponse(
+      request.userId,
+      new ObjectId(sessionUser.id),
+      sessionUser.name || "A donor",
+      request._id
+    ).catch((error) => {
+      console.error("Failed to notify request owner:", error);
+    });
+
+    res.status(HTTP_STATUS.CREATED).json({
+      _id: donorResponse._id.toString(),
+      requestId: donorResponse.requestId.toString(),
+      userId: donorResponse.userId.toString(),
+      status: donorResponse.status,
+      message: donorResponse.message,
+      createdAt: donorResponse.createdAt.toISOString(),
+      updatedAt: donorResponse.updatedAt.toISOString(),
+    });
+  } catch (error) {
+    console.error(`Error responding to blood request ${requestId}:`, error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// Update Response Status (PATCH /api/requests/:id/responses/:responseId)
+// ============================================================================
+
+/**
+ * Update response status (Req 6.7)
+ * - Request owner only
+ * - Can accept/decline/complete donor responses
+ * - Notifies donor of status change (Req 9.5)
+ */
+export async function updateResponseStatus(
+  req: Request<
+    { id: string; responseId: string },
+    {},
+    UpdateResponseStatusInput
+  >,
+  res: Response
+): Promise<void> {
+  const sessionUser = req.sessionUser!;
+  const { id: requestId, responseId } = req.params;
+  const { status: newStatus, message } = req.body;
+
+  // Validate ObjectIds
+  if (!ObjectId.isValid(requestId)) {
+    throw createValidationError("Invalid request ID format");
+  }
+  if (!ObjectId.isValid(responseId)) {
+    throw createValidationError("Invalid response ID format");
+  }
+
+  try {
+    const requestsCollection = getBloodRequestsCollection();
+    const responsesCollection = getResponsesCollection();
+
+    // Get the blood request
+    const request = await requestsCollection.findOne({
+      _id: new ObjectId(requestId),
+    });
+
+    if (!request) {
+      throw createNotFoundError("Blood request", requestId);
+    }
+
+    // Check authorization - only request owner can update response status (Req 6.7)
+    const isOwner = request.userId.toString() === sessionUser.id;
+    const isAdmin = sessionUser.role === "admin";
+
+    if (!isOwner && !isAdmin) {
+      throw createForbiddenError(
+        "Only the request owner can update response status",
+        { requestId, responseId }
+      );
+    }
+
+    // Get the response
+    const response = await responsesCollection.findOne({
+      _id: new ObjectId(responseId),
+      requestId: request._id,
+    });
+
+    if (!response) {
+      throw createNotFoundError("Response", responseId);
+    }
+
+    // Update the response
+    const updateResult = await responsesCollection.updateOne(
+      { _id: response._id },
+      {
+        $set: {
+          status: newStatus as any,
+          ...(message && { message }),
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      throw createNotFoundError("Response", responseId);
+    }
+
+    // Notify donor of status change (Req 9.5)
+    if (newStatus === "accepted" || newStatus === "declined") {
+      notifyResponseStatusChange(
+        response.userId,
+        newStatus,
+        request._id,
+        request.patientName
+      ).catch((error) => {
+        console.error("Failed to notify response status change:", error);
+      });
+    }
+
+    res.status(HTTP_STATUS.OK).json({
+      _id: response._id.toString(),
+      requestId: response.requestId.toString(),
+      userId: response.userId.toString(),
+      status: newStatus,
+      message: message || response.message,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(
+      `Error updating response status ${responseId} for request ${requestId}:`,
+      error
+    );
+    throw error;
+  }
+}
+
+// ============================================================================
+// Retract Response (DELETE /api/requests/:id/responses/:responseId)
+// ============================================================================
+
+/**
+ * Donor retracts their own response (Req 6.8-6.9)
+ * - Donor only (own response)
+ * - Only allowed if status is "offered"
+ */
+export async function retractResponse(
+  req: Request<{ id: string; responseId: string }>,
+  res: Response
+): Promise<void> {
+  const sessionUser = req.sessionUser!;
+  const { id: requestId, responseId } = req.params;
+
+  // Validate ObjectIds
+  if (!ObjectId.isValid(requestId)) {
+    throw createValidationError("Invalid request ID format");
+  }
+  if (!ObjectId.isValid(responseId)) {
+    throw createValidationError("Invalid response ID format");
+  }
+
+  try {
+    const responsesCollection = getResponsesCollection();
+
+    // Get the response
+    const response = await responsesCollection.findOne({
+      _id: new ObjectId(responseId),
+      requestId: new ObjectId(requestId),
+    });
+
+    if (!response) {
+      throw createNotFoundError("Response", responseId);
+    }
+
+    // Check authorization - donor can only retract their own response
+    if (response.userId.toString() !== sessionUser.id) {
+      throw createForbiddenError(
+        "You can only retract your own response",
+        { responseId }
+      );
+    }
+
+    // Can only retract if status is "offered" (Req 6.8-6.9)
+    if (response.status !== ResponseStatus.OFFERED) {
+      throw createValidationError(
+        `Cannot retract a ${response.status} response. Only "offered" responses can be retracted.`
+      );
+    }
+
+    // Delete the response
+    const deleteResult = await responsesCollection.deleteOne({
+      _id: response._id,
+    });
+
+    if (deleteResult.deletedCount === 0) {
+      throw createNotFoundError("Response", responseId);
+    }
+
+    res.status(HTTP_STATUS.OK).json({
+      message: "Response retracted successfully",
+      _id: responseId,
+    });
+  } catch (error) {
+    console.error(
+      `Error retracting response ${responseId} for request ${requestId}:`,
+      error
+    );
+    throw error;
+  }
+}
+
+// ============================================================================
+// Get Responses for a Request (GET /api/requests/:id/responses)
+// ============================================================================
+
+/**
+ * List all responses for a blood request
+ * - Request owner or admin only
+ * - Returns all responses with donor information
+ */
+export async function getRequestResponses(
+  req: Request<{ id: string }>,
+  res: Response
+): Promise<void> {
+  const sessionUser = req.sessionUser!;
+  const { id: requestId } = req.params;
+
+  // Validate ObjectId
+  if (!ObjectId.isValid(requestId)) {
+    throw createValidationError("Invalid request ID format");
+  }
+
+  try {
+    const requestsCollection = getBloodRequestsCollection();
+    const responsesCollection = getResponsesCollection();
+    const { getUsersCollection } = await import("../db/collections.js");
+    const usersCollection = getUsersCollection();
+
+    // Get the blood request
+    const request = await requestsCollection.findOne({
+      _id: new ObjectId(requestId),
+    });
+
+    if (!request) {
+      throw createNotFoundError("Blood request", requestId);
+    }
+
+    // Check authorization - only request owner or admin
+    const isOwner = request.userId.toString() === sessionUser.id;
+    const isAdmin = sessionUser.role === "admin";
+
+    if (!isOwner && !isAdmin) {
+      throw createForbiddenError(
+        "Only the request owner can view responses",
+        { requestId }
+      );
+    }
+
+    // Get all responses
+    const responses = await responsesCollection
+      .find({ requestId: request._id })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    // Get donor information for each response
+    const responsesWithDonorInfo = await Promise.all(
+      responses.map(async (response) => {
+        const donor = await usersCollection.findOne({
+          _id: response.userId,
+        });
+
+        return {
+          _id: response._id.toString(),
+          requestId: response.requestId.toString(),
+          userId: response.userId.toString(),
+          status: response.status,
+          message: response.message,
+          createdAt: response.createdAt.toISOString(),
+          updatedAt: response.updatedAt.toISOString(),
+          donor: donor
+            ? {
+                name: donor.name,
+                bloodGroup: donor.bloodGroup,
+                district: donor.district,
+                lastDonationDate: donor.lastDonationDate?.toISOString() || null,
+              }
+            : null,
+        };
+      })
+    );
+
+    res.status(HTTP_STATUS.OK).json({
+      requestId,
+      responses: responsesWithDonorInfo,
+      total: responses.length,
+    });
+  } catch (error) {
+    console.error(`Error fetching responses for request ${requestId}:`, error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// Get Related Requests (GET /api/requests/related/:id)
+// ============================================================================
+
+/**
+ * Find related blood requests (Req 14.1-14.6)
+ * - Same bloodGroup AND district
+ * - Excludes the current request
+ * - Only open or in_progress requests
+ * - Ranks by: critical > urgent > moderate, then neededByDate ascending
+ * - Limit 6 results
+ */
+export async function getRelatedRequests(
+  req: Request<{ id: string }>,
+  res: Response
+): Promise<void> {
+  const sessionUser = req.sessionUser;
+  const { id: requestId } = req.params;
+
+  // Validate ObjectId
+  if (!ObjectId.isValid(requestId)) {
+    throw createValidationError("Invalid request ID format");
+  }
+
+  try {
+    const collection = getBloodRequestsCollection();
+
+    // Get the source request
+    const sourceRequest = await collection.findOne({
+      _id: new ObjectId(requestId),
+    });
+
+    if (!sourceRequest) {
+      throw createNotFoundError("Blood request", requestId);
+    }
+
+    // Find related requests (Req 14.2-14.6)
+    // - Same bloodGroup AND district (14.2)
+    // - Only open/in_progress (14.3)
+    // - Exclude self
+    const relatedRequests = await collection
+      .find({
+        _id: { $ne: sourceRequest._id },
+        bloodGroup: sourceRequest.bloodGroup,
+        district: sourceRequest.district,
+        status: { $in: [RequestStatus.OPEN, RequestStatus.IN_PROGRESS] },
+      })
+      .toArray();
+
+    // Sort by urgency tier first, then by neededByDate (Req 14.4)
+    // Critical > Urgent > Moderate, then earliest neededByDate
+    const urgencyPriority: Record<string, number> = {
+      critical: 1,
+      urgent: 2,
+      moderate: 3,
+    };
+
+    const sorted = relatedRequests.sort((a, b) => {
+      const urgencyDiff =
+        (urgencyPriority[a.urgency] ?? 4) - (urgencyPriority[b.urgency] ?? 4);
+      if (urgencyDiff !== 0) return urgencyDiff;
+
+      // If same urgency, sort by date (earlier first)
+      return a.neededByDate.getTime() - b.neededByDate.getTime();
+    });
+
+    // Limit to 6 results (Req 14.5-14.6)
+    const limited = sorted.slice(0, 6);
+
+    // Mask contact info for non-owners (Req 4.1-4.4)
+    const masked = limited.map((request) => {
+      const isOwner = sessionUser && request.userId.toString() === sessionUser.id;
+      const isAdmin = sessionUser?.role === "admin";
+      const shouldMask = shouldMaskPhone(
+        request.userId.toString(),
+        sessionUser?.id,
+        isAdmin
+      );
+
+      return {
+        _id: request._id.toString(),
+        userId: request.userId.toString(),
+        patientName: request.patientName,
+        bloodGroup: request.bloodGroup,
+        unitsNeeded: request.unitsNeeded,
+        hospitalName: request.hospitalName,
+        hospitalAddress: request.hospitalAddress,
+        district: request.district,
+        urgency: request.urgency,
+        status: request.status,
+        neededByDate: request.neededByDate.toISOString(),
+        contactPhone: shouldMask ? maskPhone(request.contactPhone) : request.contactPhone,
+        additionalNotes: request.additionalNotes,
+        createdAt: request.createdAt.toISOString(),
+        updatedAt: request.updatedAt.toISOString(),
+      };
+    });
+
+    res.status(HTTP_STATUS.OK).json({
+      requestId,
+      relatedRequests: masked,
+      total: masked.length,
+    });
+  } catch (error) {
+    console.error(`Error fetching related requests for ${requestId}:`, error);
     throw error;
   }
 }
