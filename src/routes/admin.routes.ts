@@ -8,20 +8,31 @@
  * - GET /api/admin/requests - Moderation table (Req 18.9)
  * - PATCH /api/admin/requests/:id/approve - Approve request (inferred)
  * - PATCH /api/admin/requests/:id/reject - Reject request (inferred)
- * 
- * Note: User management endpoints (ban/unban/role change) will be
- * added in Phase 5f as per the implementation plan
+ * - PATCH /api/admin/users/:id/ban - Ban user (Req 10.5, Plan §5f)
+ * - PATCH /api/admin/users/:id/unban - Unban user (Req 10.6, Plan §5f)
+ * - PATCH /api/admin/users/:id/role - Change user role (Req 1.10, Plan §5f)
  */
 
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { requireAdmin } from "../middleware/role.middleware.js";
+import { validate } from "../middleware/validate.middleware.js";
 import {
   getAdminStats,
   getAdminRequests,
   approveRequest,
   rejectRequest,
+  banUser,
+  unbanUser,
+  changeUserRole,
 } from "../controllers/admin.controller.js";
+import {
+  banUserSchema,
+  unbanUserSchema,
+  changeUserRoleSchema,
+  approveRequestSchema,
+  rejectRequestSchema,
+} from "../validators/admin.validator.js";
 
 const router = Router();
 
@@ -90,7 +101,7 @@ router.get("/requests", getAdminRequests);
  * @access Admin only
  * @see Req 10.2
  */
-router.patch("/requests/:id/approve", approveRequest);
+router.patch("/requests/:id/approve", validate(approveRequestSchema), approveRequest);
 
 /**
  * PATCH /api/admin/requests/:id/reject
@@ -105,6 +116,55 @@ router.patch("/requests/:id/approve", approveRequest);
  * @access Admin only
  * @see Req 10.3
  */
-router.patch("/requests/:id/reject", rejectRequest);
+router.patch("/requests/:id/reject", validate(rejectRequestSchema), rejectRequest);
+
+// ============================================================================
+// Admin User Management Routes (Phase 5f - Plan §0.B)
+// ============================================================================
+
+/**
+ * PATCH /api/admin/users/:id/ban
+ * Ban a user account
+ * 
+ * Body:
+ * - reason: Required ban reason (string)
+ * 
+ * Prevents user from accessing protected routes. Admin cannot ban themselves.
+ * Logs action to Admin_Action_Log
+ * 
+ * @access Admin only
+ * @see Req 10.5
+ */
+router.patch("/users/:id/ban", validate(banUserSchema), banUser);
+
+/**
+ * PATCH /api/admin/users/:id/unban
+ * Unban a user account
+ * 
+ * Body:
+ * - reason: Optional unban reason
+ * 
+ * Restores access to a previously banned user.
+ * Logs action to Admin_Action_Log
+ * 
+ * @access Admin only
+ * @see Req 10.6
+ */
+router.patch("/users/:id/unban", validate(unbanUserSchema), unbanUser);
+
+/**
+ * PATCH /api/admin/users/:id/role
+ * Change user role (user ↔ admin)
+ * 
+ * Body:
+ * - role: Required role value ("user" | "admin")
+ * 
+ * Promotes/demotes users. Admin cannot demote themselves to prevent lockout.
+ * Logs action to Admin_Action_Log
+ * 
+ * @access Admin only
+ * @see Req 1.10, AdminActionType.CHANGE_USER_ROLE
+ */
+router.patch("/users/:id/role", validate(changeUserRoleSchema), changeUserRole);
 
 export default router;
