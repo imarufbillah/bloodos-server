@@ -27,3 +27,13 @@ export {
   type StateTransitionActor,
   type StateTransitionResult,
 } from "./requestStateMachine.service.js";
+
+// Admin Action Log Service
+export {
+  logAdminAction,
+  extractChangedFields,
+  getAdminActionsByAdmin,
+  getAdminActionsByTarget,
+  getRecentAdminActions,
+  type LogAdminActionParams,
+} from "./adminActionLog.service.js";
