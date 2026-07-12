@@ -10,6 +10,8 @@ import donorsRouter from "./routes/donors.routes.js";
 import notificationsRouter from "./routes/notifications.routes.js";
 import adminRouter from "./routes/admin.routes.js";
 import contactRouter from "./routes/contact.routes.js";
+import usersRouter from "./routes/users.routes.js";
+import donationsRouter from "./routes/donations.routes.js";
 
 /**
  * Create and configure Express application
@@ -91,8 +93,11 @@ export const createApp = (): Application => {
   // Contact Form Routes (Phase 5g)
   app.use("/api/contact", contactRouter);
 
-  // TODO: Mount additional route handlers here as they are implemented
-  // app.use('/api/users', usersRouter);
+  // Users Routes (Phase 5h)
+  app.use("/api/users", usersRouter);
+
+  // Donations Routes (Phase 5h)
+  app.use("/api/donations", donationsRouter);
 
   // ============================================================================
   // Error Handling Middleware
