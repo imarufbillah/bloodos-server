@@ -19,3 +19,11 @@ export {
   getCompatibleDonors,
   getCompatibleRecipients,
 } from "./compatibility.js";
+
+// Request State Machine Service
+export {
+  requestStateMachine,
+  RequestStateMachineService,
+  type StateTransitionActor,
+  type StateTransitionResult,
+} from "./requestStateMachine.service.js";
