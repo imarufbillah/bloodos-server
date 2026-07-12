@@ -6,6 +6,7 @@ import {
   notFoundHandler,
 } from "./middleware/error.middleware.js";
 import requestsRouter from "./routes/requests.routes.js";
+import donorsRouter from "./routes/donors.routes.js";
 
 /**
  * Create and configure Express application
@@ -75,8 +76,10 @@ export const createApp = (): Application => {
   // Blood Requests Routes (Phase 5a)
   app.use("/api/requests", requestsRouter);
 
+  // Donors Routes (Phase 5c)
+  app.use("/api/donors", donorsRouter);
+
   // TODO: Mount additional route handlers here as they are implemented
-  // app.use('/api/donors', donorsRouter);
   // app.use('/api/notifications', notificationsRouter);
   // app.use('/api/users', usersRouter);
   // app.use('/api/admin', adminRouter);
