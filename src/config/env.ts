@@ -49,6 +49,9 @@ export const config = {
   frontend: {
     url: env.FRONTEND_URL,
   },
+  cors: {
+    origin: env.FRONTEND_URL,
+  },
   auth: {
     betterAuthUrl: env.BETTER_AUTH_URL || env.FRONTEND_URL,
     jwksUrl: env.JWT_JWKS_URL || `${env.FRONTEND_URL}/.well-known/jwks.json`,
