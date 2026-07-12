@@ -1,7 +1,7 @@
 /**
- * Blood Requests Routes (Phase 5a)
- * API routes for blood request CRUD + status transitions
- * Requirements: 20.5-20.9, 20.16-20.19, 7.1-7.12, 3.1-3.9, 5's table rows
+ * Blood Requests Routes (Phase 5a + 5b)
+ * API routes for blood request CRUD + status transitions + respond/responses workflow + related
+ * Requirements: 20.5-20.9, 20.16-20.19, 7.1-7.12, 3.1-3.9, 5's table rows, 6.1-6.11, 14.1-14.6
  */
 
 import { Router } from "express";
@@ -13,12 +13,21 @@ import {
   listRequestsQuerySchema,
 } from "../validators/request.validator.js";
 import {
+  createResponseSchema,
+  updateResponseStatusSchema,
+} from "../validators/response.validator.js";
+import {
   createBloodRequest,
   listBloodRequests,
   getBloodRequestById,
   getMyBloodRequests,
   updateBloodRequestStatus,
   deleteBloodRequest,
+  respondToBloodRequest,
+  updateResponseStatus,
+  retractResponse,
+  getRequestResponses,
+  getRelatedRequests,
 } from "../controllers/requests.controller.js";
 
 const router = Router();
@@ -40,6 +49,23 @@ router.get(
   optionalAuth, // Optional auth to enable contact masking based on ownership
   validate(listRequestsQuerySchema),
   listBloodRequests as any // Type compatibility with Express handler
+);
+
+/**
+ * GET /api/requests/related/:id
+ * Find related blood requests (Req 14.1-14.6)
+ * - Public endpoint
+ * - Same bloodGroup AND district
+ * - Only open/in_progress requests
+ * - Ranks by urgency then date
+ * - Limit 6 results
+ * 
+ * IMPORTANT: This must come BEFORE /:id route to avoid route collision
+ */
+router.get(
+  "/related/:id",
+  optionalAuth,
+  getRelatedRequests
 );
 
 /**
@@ -114,6 +140,66 @@ router.delete(
   "/:id",
   requireAuth,
   deleteBloodRequest
+);
+
+// ============================================================================
+// Phase 5b: Respond/Responses Workflow Routes
+// ============================================================================
+
+/**
+ * POST /api/requests/:id/respond
+ * Donor responds to a blood request (Req 6.1-6.3)
+ * - Auth required, donor only
+ * - Runs eligibility check (Req 6.1)
+ * - Auto-transitions to "in_progress" on first response (Req 3.2)
+ * - Max 50 responses per request (Req 6.10-6.11)
+ * - Notifies request owner (Req 9.4)
+ */
+router.post(
+  "/:id/respond",
+  requireAuth,
+  validate(createResponseSchema),
+  respondToBloodRequest
+);
+
+/**
+ * GET /api/requests/:id/responses
+ * List all responses for a blood request
+ * - Auth required
+ * - Owner or Admin only
+ * - Returns responses with donor information
+ */
+router.get(
+  "/:id/responses",
+  requireAuth,
+  getRequestResponses
+);
+
+/**
+ * PATCH /api/requests/:id/responses/:responseId
+ * Update response status (Req 6.7)
+ * - Auth required
+ * - Owner only (can accept/decline/complete responses)
+ * - Notifies donor of status change (Req 9.5)
+ */
+router.patch(
+  "/:id/responses/:responseId",
+  requireAuth,
+  validate(updateResponseStatusSchema),
+  updateResponseStatus
+);
+
+/**
+ * DELETE /api/requests/:id/responses/:responseId
+ * Donor retracts their own response (Req 6.8-6.9)
+ * - Auth required
+ * - Donor only (own response)
+ * - Only allowed if status is "offered"
+ */
+router.delete(
+  "/:id/responses/:responseId",
+  requireAuth,
+  retractResponse
 );
 
 // ============================================================================
