@@ -82,3 +82,43 @@ export interface BanUserDto {
   banned: boolean;
   reason: string;
 }
+
+// ============================================================================
+// User Response History (Req 13.10, inferred from plan §0.E)
+// ============================================================================
+
+export interface UserResponseHistoryDto {
+  _id: string;
+  requestId: string;
+  status: string; // ResponseStatus
+  message?: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  // Parent request summary for context
+  request: {
+    _id: string;
+    patientName: string;
+    bloodGroup: string;
+    hospitalName: string;
+    district: string;
+    urgency: string;
+    status: string; // RequestStatus
+    neededByDate: Date | string;
+  };
+}
+
+// ============================================================================
+// User Donation History (Req 13.8-13.9)
+// ============================================================================
+
+export interface UserDonationHistoryDto {
+  _id: string;
+  donationDate: Date | string;
+  bloodGroup: string;
+  hospitalName: string;
+  district: string;
+  verified: boolean;
+  verifiedBy?: string | null;
+  verifiedAt?: Date | string | null;
+  createdAt: Date | string;
+}
