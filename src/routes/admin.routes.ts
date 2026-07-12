@@ -25,6 +25,7 @@ import {
   banUser,
   unbanUser,
   changeUserRole,
+  verifyDonation,
 } from "../controllers/admin.controller.js";
 import {
   banUserSchema,
@@ -33,6 +34,7 @@ import {
   approveRequestSchema,
   rejectRequestSchema,
 } from "../validators/admin.validator.js";
+import { verifyDonationSchema } from "../validators/donation.validator.js";
 
 const router = Router();
 
@@ -166,5 +168,25 @@ router.patch("/users/:id/unban", validate(unbanUserSchema), unbanUser);
  * @see Req 1.10, AdminActionType.CHANGE_USER_ROLE
  */
 router.patch("/users/:id/role", validate(changeUserRoleSchema), changeUserRole);
+
+// ============================================================================
+// Admin Donation Management Routes (Phase 5h)
+// ============================================================================
+
+/**
+ * PATCH /api/admin/donations/:id/verify
+ * Verify a self-reported blood donation
+ * 
+ * Body:
+ * - reason: Optional verification notes/reason
+ * 
+ * Admin confirms donation actually occurred based on documentation.
+ * Updates donation.verified to true, sets verifiedBy and verifiedAt.
+ * Logs action to Admin_Action_Log
+ * 
+ * @access Admin only
+ * @see Req 10.4, Plan §5h
+ */
+router.patch("/donations/:id/verify", validate(verifyDonationSchema), verifyDonation);
 
 export default router;
