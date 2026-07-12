@@ -51,6 +51,23 @@ export const createApp = (): Application => {
   });
 
   // ============================================================================
+  // Rate Limiting (Req 15)
+  // ============================================================================
+  // Note: Rate limiters are defined in middleware/rateLimit.middleware.ts
+  // They should be applied to specific routes:
+  // - authRateLimiter: POST /api/auth/login, POST /api/auth/register
+  // - contactFormRateLimiter: POST /api/contact
+  // 
+  // Current architecture: Better-auth handles authentication on the Next.js
+  // client app at /api/auth/*. When backend auth routes are added, apply
+  // rate limiters as follows:
+  //
+  // import { authRateLimiter, contactFormRateLimiter } from './middleware/rateLimit.middleware.js';
+  // app.post('/api/auth/login', authRateLimiter, authController.login);
+  // app.post('/api/auth/register', authRateLimiter, authController.register);
+  // app.post('/api/contact', contactFormRateLimiter, contactController.submit);
+
+  // ============================================================================
   // API Routes
   // ============================================================================
   // TODO: Mount route handlers here in Phase 5

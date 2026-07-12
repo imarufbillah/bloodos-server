@@ -42,5 +42,13 @@ export {
   getAdminActionContext,
 } from "./role.middleware.js";
 
+// Rate limiting middleware (Req 15)
+export {
+  authRateLimiter,
+  contactFormRateLimiter,
+  generalApiRateLimiter,
+  createCustomRateLimiter,
+} from "./rateLimit.middleware.js";
+
 // Re-export types
 export type { AsyncRequestHandler } from "./error.middleware.js";
