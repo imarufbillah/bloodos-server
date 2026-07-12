@@ -524,6 +524,371 @@ export const rejectRequest = asyncHandler(
 // Helper Functions
 // ============================================================================
 
+// ============================================================================
+// PATCH /api/admin/users/:id/ban - Ban User (Req 10.5, Plan §5f)
+// ============================================================================
+
+/**
+ * Ban a user account
+ * 
+ * Prevents the user from accessing protected routes and performing actions.
+ * Requires a reason for the ban. Admins cannot ban themselves.
+ * 
+ * Logs action via Admin_Action_Log (Req 10.5)
+ * 
+ * @route PATCH /api/admin/users/:id/ban
+ * @access Admin only
+ */
+export const banUser = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const { reason } = req.body; // Required
+    const sessionUser = (req as AuthenticatedRequest).sessionUser;
+    const usersCollection = getUsersCollection();
+
+    // Validate required fields
+    if (!reason || typeof reason !== "string" || reason.trim().length === 0) {
+      res.status(400).json({
+        code: "validation_error",
+        message: "Ban reason is required",
+        details: { field: "reason", rule: "required" },
+      });
+      return;
+    }
+
+    // Validate id parameter
+    if (!id || typeof id !== 'string') {
+      throw createNotFoundError("Invalid user ID");
+    }
+
+    // Validate ObjectId
+    if (!ObjectId.isValid(id)) {
+      throw createNotFoundError("User not found");
+    }
+
+    const userId = new ObjectId(id);
+
+    // Prevent self-ban (even though not in requirements, critical safety feature)
+    if (userId.toString() === sessionUser.id) {
+      res.status(403).json({
+        code: "forbidden",
+        message: "Admins cannot ban themselves",
+        details: null,
+      });
+      return;
+    }
+
+    // Find the user
+    const user = await usersCollection.findOne({ _id: userId });
+
+    if (!user) {
+      throw createNotFoundError("User not found");
+    }
+
+    // Capture previous state
+    const previousState = {
+      banned: user.banned || false,
+      banReason: user.banReason || null,
+    };
+
+    const newState = {
+      banned: true,
+      banReason: reason,
+      bannedAt: new Date(),
+      bannedBy: sessionUser.id,
+    };
+
+    // Update user to banned
+    await usersCollection.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          banned: true,
+          banReason: reason,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    // Log admin action (Req 10.5)
+    await logAdminAction({
+      adminId: new ObjectId(sessionUser.id),
+      action: AdminActionType.BAN_USER,
+      targetType: "user",
+      targetId: userId,
+      previousState,
+      newState,
+      reason: reason,
+      ipAddress: req.ip || "unknown",
+    });
+
+    // Fetch updated user
+    const updatedUser = await usersCollection.findOne({ _id: userId });
+
+    res.status(200).json({
+      message: "User banned successfully",
+      user: {
+        id: updatedUser!._id.toString(),
+        email: updatedUser!.email,
+        name: updatedUser!.name,
+        banned: updatedUser!.banned,
+        banReason: updatedUser!.banReason,
+      },
+    });
+  }
+);
+
+// ============================================================================
+// PATCH /api/admin/users/:id/unban - Unban User (Req 10.6, Plan §5f)
+// ============================================================================
+
+/**
+ * Unban a user account
+ * 
+ * Restores access to a previously banned user.
+ * 
+ * Logs action via Admin_Action_Log (Req 10.6)
+ * 
+ * @route PATCH /api/admin/users/:id/unban
+ * @access Admin only
+ */
+export const unbanUser = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const { reason } = req.body; // Optional - reason for unbanning
+    const sessionUser = (req as AuthenticatedRequest).sessionUser;
+    const usersCollection = getUsersCollection();
+
+    // Validate id parameter
+    if (!id || typeof id !== 'string') {
+      throw createNotFoundError("Invalid user ID");
+    }
+
+    // Validate ObjectId
+    if (!ObjectId.isValid(id)) {
+      throw createNotFoundError("User not found");
+    }
+
+    const userId = new ObjectId(id);
+
+    // Find the user
+    const user = await usersCollection.findOne({ _id: userId });
+
+    if (!user) {
+      throw createNotFoundError("User not found");
+    }
+
+    // Check if user is actually banned
+    if (!user.banned) {
+      res.status(400).json({
+        code: "validation_error",
+        message: "User is not currently banned",
+        details: null,
+      });
+      return;
+    }
+
+    // Capture previous state
+    const previousState = {
+      banned: user.banned,
+      banReason: user.banReason || null,
+    };
+
+    const newState = {
+      banned: false,
+      banReason: null,
+      unbannedAt: new Date(),
+      unbannedBy: sessionUser.id,
+    };
+
+    // Update user to unbanned
+    await usersCollection.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          banned: false,
+          banReason: null,
+          banExpiresAt: null,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    // Log admin action (Req 10.6)
+    const logParams: {
+      adminId: ObjectId;
+      action: AdminActionType;
+      targetType: "user";
+      targetId: ObjectId;
+      previousState: Record<string, unknown>;
+      newState: Record<string, unknown>;
+      reason?: string;
+      ipAddress: string;
+    } = {
+      adminId: new ObjectId(sessionUser.id),
+      action: AdminActionType.UNBAN_USER,
+      targetType: "user",
+      targetId: userId,
+      previousState,
+      newState,
+      ipAddress: req.ip || "unknown",
+    };
+
+    if (typeof reason === 'string' && reason.trim().length > 0) {
+      logParams.reason = reason;
+    }
+
+    await logAdminAction(logParams);
+
+    // Fetch updated user
+    const updatedUser = await usersCollection.findOne({ _id: userId });
+
+    res.status(200).json({
+      message: "User unbanned successfully",
+      user: {
+        id: updatedUser!._id.toString(),
+        email: updatedUser!.email,
+        name: updatedUser!.name,
+        banned: updatedUser!.banned,
+        banReason: updatedUser!.banReason,
+      },
+    });
+  }
+);
+
+// ============================================================================
+// PATCH /api/admin/users/:id/role - Change User Role (Req 1.10, Plan §5f)
+// ============================================================================
+
+/**
+ * Change a user's role (user ↔ admin)
+ * 
+ * Allows admins to promote users to admin or demote admins to users.
+ * Admins cannot demote themselves to prevent lockout.
+ * 
+ * Logs action via Admin_Action_Log (Req 10, extending for role changes)
+ * 
+ * @route PATCH /api/admin/users/:id/role
+ * @access Admin only
+ */
+export const changeUserRole = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const { role } = req.body; // Required: "user" or "admin"
+    const sessionUser = (req as AuthenticatedRequest).sessionUser;
+    const usersCollection = getUsersCollection();
+
+    // Validate required fields
+    if (!role || typeof role !== "string") {
+      res.status(400).json({
+        code: "validation_error",
+        message: "Role is required",
+        details: { field: "role", rule: "required" },
+      });
+      return;
+    }
+
+    // Validate role value
+    if (role !== "user" && role !== "admin") {
+      res.status(400).json({
+        code: "validation_error",
+        message: "Invalid role. Must be 'user' or 'admin'",
+        details: { field: "role", rule: "enum", allowedValues: ["user", "admin"] },
+      });
+      return;
+    }
+
+    // Validate id parameter
+    if (!id || typeof id !== 'string') {
+      throw createNotFoundError("Invalid user ID");
+    }
+
+    // Validate ObjectId
+    if (!ObjectId.isValid(id)) {
+      throw createNotFoundError("User not found");
+    }
+
+    const userId = new ObjectId(id);
+
+    // Prevent self-demotion (critical safety feature)
+    if (userId.toString() === sessionUser.id && role === "user") {
+      res.status(403).json({
+        code: "forbidden",
+        message: "Admins cannot demote themselves",
+        details: null,
+      });
+      return;
+    }
+
+    // Find the user
+    const user = await usersCollection.findOne({ _id: userId });
+
+    if (!user) {
+      throw createNotFoundError("User not found");
+    }
+
+    // Check if role is already set to the target value
+    if (user.role === role) {
+      res.status(400).json({
+        code: "validation_error",
+        message: `User is already a${role === "admin" ? "n" : ""} ${role}`,
+        details: null,
+      });
+      return;
+    }
+
+    // Capture previous state
+    const previousState = {
+      role: user.role,
+    };
+
+    const newState = {
+      role: role,
+      roleChangedAt: new Date(),
+      roleChangedBy: sessionUser.id,
+    };
+
+    // Update user role
+    await usersCollection.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          role: role,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    // Log admin action (using CHANGE_USER_ROLE from AdminActionType)
+    await logAdminAction({
+      adminId: new ObjectId(sessionUser.id),
+      action: AdminActionType.CHANGE_USER_ROLE,
+      targetType: "user",
+      targetId: userId,
+      previousState,
+      newState,
+      ipAddress: req.ip || "unknown",
+    });
+
+    // Fetch updated user
+    const updatedUser = await usersCollection.findOne({ _id: userId });
+
+    res.status(200).json({
+      message: "User role changed successfully",
+      user: {
+        id: updatedUser!._id.toString(),
+        email: updatedUser!.email,
+        name: updatedUser!.name,
+        role: updatedUser!.role,
+      },
+    });
+  }
+);
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
 /**
  * Fill gaps in trend data to ensure all 30 days are present
  * Even days with 0 requests should be shown
