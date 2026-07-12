@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "init-indexes": "tsc && node dist/scripts/init-indexes.js",
     "verify-indexes": "tsc && node dist/scripts/verify-indexes.js",
+    "seed": "tsc && node dist/scripts/seed.js",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
