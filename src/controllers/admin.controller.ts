@@ -886,6 +886,130 @@ export const changeUserRole = asyncHandler(
 );
 
 // ============================================================================
+// PATCH /api/admin/donations/:id/verify - Verify Donation (Req 10.4, Plan §5h)
+// ============================================================================
+
+/**
+ * Verify a self-reported blood donation
+ * 
+ * Admin confirms that a donation actually occurred, based on documentation
+ * or verification from the medical facility.
+ * 
+ * Logs action via Admin_Action_Log (Req 10.4)
+ * 
+ * @route PATCH /api/admin/donations/:id/verify
+ * @access Admin only
+ */
+export const verifyDonation = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const { reason } = req.body; // Optional - verification notes
+    const sessionUser = (req as AuthenticatedRequest).sessionUser;
+    const donationsCollection = getDonationsCollection();
+
+    // Validate id parameter
+    if (!id || typeof id !== 'string') {
+      throw createNotFoundError("Invalid donation ID");
+    }
+
+    // Validate ObjectId
+    if (!ObjectId.isValid(id)) {
+      throw createNotFoundError("Donation not found");
+    }
+
+    const donationId = new ObjectId(id);
+
+    // Find the donation
+    const donation = await donationsCollection.findOne({ _id: donationId });
+
+    if (!donation) {
+      throw createNotFoundError("Donation not found");
+    }
+
+    // Check if already verified
+    if (donation.verified) {
+      res.status(400).json({
+        code: "validation_error",
+        message: "Donation is already verified",
+        details: null,
+      });
+      return;
+    }
+
+    // Capture previous state
+    const previousState = {
+      verified: donation.verified,
+      verifiedBy: donation.verifiedBy,
+      verifiedAt: donation.verifiedAt,
+    };
+
+    const now = new Date();
+    const newState = {
+      verified: true,
+      verifiedBy: sessionUser.id,
+      verifiedAt: now,
+    };
+
+    // Update donation to verified
+    await donationsCollection.updateOne(
+      { _id: donationId },
+      {
+        $set: {
+          verified: true,
+          verifiedBy: new ObjectId(sessionUser.id),
+          verifiedAt: now,
+        },
+      }
+    );
+
+    // Log admin action (Req 10.4)
+    const logParams: {
+      adminId: ObjectId;
+      action: AdminActionType;
+      targetType: "donation";
+      targetId: ObjectId;
+      previousState: Record<string, unknown>;
+      newState: Record<string, unknown>;
+      reason?: string;
+      ipAddress: string;
+    } = {
+      adminId: new ObjectId(sessionUser.id),
+      action: AdminActionType.VERIFY_DONATION,
+      targetType: "donation",
+      targetId: donationId,
+      previousState,
+      newState,
+      ipAddress: req.ip || "unknown",
+    };
+
+    if (typeof reason === 'string' && reason.trim().length > 0) {
+      logParams.reason = reason;
+    }
+
+    await logAdminAction(logParams);
+
+    // Fetch updated donation
+    const updatedDonation = await donationsCollection.findOne({ _id: donationId });
+
+    res.status(200).json({
+      message: "Donation verified successfully",
+      donation: {
+        _id: updatedDonation!._id.toString(),
+        userId: updatedDonation!.userId.toString(),
+        donationDate: updatedDonation!.donationDate.toISOString(),
+        bloodGroup: updatedDonation!.bloodGroup,
+        hospitalName: updatedDonation!.hospitalName,
+        district: updatedDonation!.district,
+        verified: updatedDonation!.verified,
+        verifiedBy: updatedDonation!.verifiedBy?.toString(),
+        verifiedAt: updatedDonation!.verifiedAt?.toISOString(),
+        createdAt: updatedDonation!.createdAt.toISOString(),
+      },
+    });
+  }
+);
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
