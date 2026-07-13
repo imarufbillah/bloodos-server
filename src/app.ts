@@ -13,6 +13,7 @@ import adminRouter from "./routes/admin.routes.js";
 import contactRouter from "./routes/contact.routes.js";
 import usersRouter from "./routes/users.routes.js";
 import donationsRouter from "./routes/donations.routes.js";
+import statsRouter from "./routes/stats.routes.js";
 
 /**
  * Create and configure Express application
@@ -67,6 +68,9 @@ export const createApp = (): Application => {
   // ============================================================================
   // API Routes
   // ============================================================================
+
+  // Public Stats Routes (Phase 8a - Homepage)
+  app.use("/api/stats", statsRouter);
 
   // Blood Requests Routes (Phase 5a)
   app.use("/api/requests", requestsRouter);
