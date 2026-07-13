@@ -988,6 +988,13 @@ export const verifyDonation = asyncHandler(
 
     await logAdminAction(logParams);
 
+    // Notify donor that their donation was verified (Req 9.7)
+    const { notifyDonationVerified } = await import("../services/notification.service.js");
+    notifyDonationVerified(donation.userId, donationId, donation.donationDate).catch((error) => {
+      console.error("Failed to notify donor of donation verification:", error);
+      // Don't fail the verification if notification fails
+    });
+
     // Fetch updated donation
     const updatedDonation = await donationsCollection.findOne({ _id: donationId });
 
