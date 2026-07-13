@@ -146,3 +146,39 @@ export const markNotificationRead = async (
     data: result,
   });
 };
+
+/**
+ * PATCH /api/notifications/read-all
+ * Mark all user's notifications as read
+ * 
+ * Authentication required
+ * Bulk update all notifications for the authenticated user
+ * 
+ * Sets isRead: true on all user's unread notifications
+ * 
+ * @returns Count of notifications updated
+ */
+export const markAllNotificationsRead = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const userId = req.sessionUser._id;
+  const notificationsCollection = getNotificationsCollection();
+
+  // Update all unread notifications for this user
+  const result = await notificationsCollection.updateMany(
+    { 
+      userId, 
+      isRead: false 
+    },
+    { 
+      $set: { isRead: true } 
+    }
+  );
+
+  res.json({
+    success: true,
+    message: `Marked ${result.modifiedCount} notification(s) as read`,
+    count: result.modifiedCount,
+  });
+};

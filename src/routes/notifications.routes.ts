@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/auth.middleware.js";
 import {
   listNotifications,
   markNotificationRead,
+  markAllNotificationsRead,
 } from "../controllers/notifications.controller.js";
 
 const router = Router();
@@ -47,6 +48,24 @@ router.patch(
   "/:id/read",
   requireAuth, // Must be authenticated
   markNotificationRead as any // Type compatibility with Express handler
+);
+
+/**
+ * PATCH /api/notifications/read-all
+ * Mark all user's notifications as read
+ * 
+ * Authentication required
+ * Bulk update all unread notifications for the authenticated user
+ * 
+ * Returns count of notifications updated
+ * 
+ * NOTE: This route must come AFTER /:id/read to avoid route collision
+ * (otherwise "read-all" would be treated as an id)
+ */
+router.patch(
+  "/read-all",
+  requireAuth, // Must be authenticated
+  markAllNotificationsRead as any // Type compatibility with Express handler
 );
 
 export default router;
