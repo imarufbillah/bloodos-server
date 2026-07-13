@@ -5,6 +5,7 @@ import {
   errorHandler,
   notFoundHandler,
 } from "./middleware/error.middleware.js";
+import { contactFormRateLimiter } from "./middleware/rateLimit.middleware.js";
 import requestsRouter from "./routes/requests.routes.js";
 import donorsRouter from "./routes/donors.routes.js";
 import notificationsRouter from "./routes/notifications.routes.js";
@@ -60,19 +61,8 @@ export const createApp = (): Application => {
   // ============================================================================
   // Rate Limiting (Req 15)
   // ============================================================================
-  // Note: Rate limiters are defined in middleware/rateLimit.middleware.ts
-  // They should be applied to specific routes:
-  // - authRateLimiter: POST /api/auth/login, POST /api/auth/register
-  // - contactFormRateLimiter: POST /api/contact
-  // 
-  // Current architecture: Better-auth handles authentication on the Next.js
-  // client app at /api/auth/*. When backend auth routes are added, apply
-  // rate limiters as follows:
-  //
-  // import { authRateLimiter, contactFormRateLimiter } from './middleware/rateLimit.middleware.js';
-  // app.post('/api/auth/login', authRateLimiter, authController.login);
-  // app.post('/api/auth/register', authRateLimiter, authController.register);
-  // app.post('/api/contact', contactFormRateLimiter, contactController.submit);
+  // Contact form rate limiter applied to prevent spam/abuse
+  // Limit: 5 requests per 15 minutes per IP address
 
   // ============================================================================
   // API Routes
@@ -90,8 +80,8 @@ export const createApp = (): Application => {
   // Admin Routes (Phase 5e)
   app.use("/api/admin", adminRouter);
 
-  // Contact Form Routes (Phase 5g)
-  app.use("/api/contact", contactRouter);
+  // Contact Form Routes (Phase 5g) - WITH RATE LIMITING
+  app.use("/api/contact", contactFormRateLimiter, contactRouter);
 
   // Users Routes (Phase 5h)
   app.use("/api/users", usersRouter);
