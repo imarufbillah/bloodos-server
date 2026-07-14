@@ -54,6 +54,6 @@ export const config = {
   },
   auth: {
     betterAuthUrl: env.BETTER_AUTH_URL || env.FRONTEND_URL,
-    jwksUrl: env.JWT_JWKS_URL || `${env.FRONTEND_URL}/.well-known/jwks.json`,
+    jwksUrl: env.JWT_JWKS_URL || `${env.FRONTEND_URL}/api/auth/jwks`,
   },
 } as const;
