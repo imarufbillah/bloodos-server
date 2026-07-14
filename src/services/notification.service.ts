@@ -265,7 +265,7 @@ export async function notifyNewMatchingRequest(
 
   // Create notifications for all eligible donors
   const inputs: CreateNotificationInput[] = eligibleDonors.map((donor) => ({
-    userId: donor._id,
+    userId: donor._id!, // ! assertion since we know donors from DB have _id
     type: "new_matching_request",
     title: "New Blood Request in Your Area",
     message: `A ${request.urgency} blood request for ${request.bloodGroup} has been posted in ${request.district}. ${request.patientName} needs help at ${request.hospitalName}.`,
@@ -347,7 +347,7 @@ export async function notifySystemAnnouncement(
 
   // Create notifications for all users
   const inputs: CreateNotificationInput[] = users.map((user) => ({
-    userId: user._id,
+    userId: user._id!, // ! assertion since we know users from DB have _id
     type: "system_announcement",
     title,
     message,

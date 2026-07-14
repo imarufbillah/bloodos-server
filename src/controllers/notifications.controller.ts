@@ -37,7 +37,7 @@ export const listNotifications = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
-  const userId = req.sessionUser._id;
+  const userId = new ObjectId(req.sessionUser.id);
 
   // Parse pagination params with fallbacks
   const pageParam = req.query.page ? parseInt(req.query.page as string, 10) : 1;
@@ -97,7 +97,7 @@ export const markNotificationRead = async (
   res: Response
 ): Promise<void> => {
   const notificationIdString = req.params.id;
-  const userId = req.sessionUser._id;
+  const userId = new ObjectId(req.sessionUser.id);
 
   // Type guard - ensure it's a string
   if (typeof notificationIdString !== "string") {
@@ -162,7 +162,7 @@ export const markAllNotificationsRead = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
-  const userId = req.sessionUser._id;
+  const userId = new ObjectId(req.sessionUser.id);
   const notificationsCollection = getNotificationsCollection();
 
   // Update all unread notifications for this user

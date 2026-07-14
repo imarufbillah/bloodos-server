@@ -7,8 +7,8 @@ import type { UserRole, BloodGroup, District } from "../shared.js";
  * The full user document is managed by better-auth
  */
 export interface User {
-  _id: ObjectId;
-  id: string; // better-auth's string ID
+  id: string; // better-auth's string ID (primary identifier)
+  _id?: ObjectId; // MongoDB ObjectId (only present when fetched from DB directly)
   email: string;
   emailVerified: boolean;
   name: string | null;

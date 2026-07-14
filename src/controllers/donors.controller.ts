@@ -125,7 +125,7 @@ export const requestContact = async (
     throw createNotFoundError("Donor", "invalid");
   }
   
-  const requestorId = req.sessionUser._id;
+  const requestorId = new ObjectId(req.sessionUser.id);
   const requestorName = req.sessionUser.name || "A user";
 
   // Validate and parse donor ID
