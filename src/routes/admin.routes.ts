@@ -20,6 +20,7 @@ import { validate } from "../middleware/validate.middleware.js";
 import {
   getAdminStats,
   getAdminRequests,
+  getAdminUsers,
   approveRequest,
   rejectRequest,
   banUser,
@@ -89,6 +90,25 @@ router.get("/stats", getAdminStats);
  * @see Req 18.9
  */
 router.get("/requests", getAdminRequests);
+
+/**
+ * GET /api/admin/users
+ * Get all users for user management table
+ * 
+ * Query params:
+ * - role: Filter by role (user|admin)
+ * - isDonor: Filter by donor status (true|false)
+ * - bloodGroup: Filter by blood group
+ * - district: Filter by district
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 20, max: 100)
+ * 
+ * Returns: PaginatedResponse<User>
+ * 
+ * @access Admin only
+ * @see Req 5f, Plan §0.B
+ */
+router.get("/users", getAdminUsers);
 
 /**
  * PATCH /api/admin/requests/:id/approve

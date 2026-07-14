@@ -310,6 +310,113 @@ export const getAdminRequests = asyncHandler(
 );
 
 // ============================================================================
+// GET /api/admin/users - User Management Data (Req 5f, Plan §0.B)
+// ============================================================================
+
+/**
+ * Get all users for admin user management
+ * 
+ * Returns complete list of users with all details for the admin
+ * user management table.
+ * 
+ * Supports filtering for the admin interface
+ * 
+ * @route GET /api/admin/users
+ * @query role - Filter by role: user|admin (optional)
+ * @query isDonor - Filter by donor status: true|false (optional)
+ * @query bloodGroup - Filter by blood group (optional)
+ * @query district - Filter by district (optional)
+ * @query page - Page number (default: 1)
+ * @query limit - Items per page (default: 20, max: 100)
+ * @access Admin only
+ */
+export const getAdminUsers = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const usersCollection = getUsersCollection();
+
+    // Parse query parameters
+    const {
+      role,
+      isDonor,
+      bloodGroup,
+      district,
+      page = "1",
+      limit = "20",
+    } = req.query;
+
+    // Build filter
+    const filter: Record<string, unknown> = {};
+
+    if (role && typeof role === "string") {
+      filter.role = role;
+    }
+
+    if (isDonor === "true") {
+      filter.isDonor = true;
+    } else if (isDonor === "false") {
+      filter.isDonor = false;
+    }
+
+    if (bloodGroup && typeof bloodGroup === "string") {
+      filter.bloodGroup = bloodGroup;
+    }
+
+    if (district && typeof district === "string") {
+      filter.district = district;
+    }
+
+    // Parse pagination
+    const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get total count and users in parallel
+    const [totalCount, users] = await Promise.all([
+      usersCollection.countDocuments(filter),
+      usersCollection
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .toArray(),
+    ]);
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    // Transform to DTO (convert ObjectId to string, hide sensitive fields)
+    const usersDto = users.map((user) => ({
+      _id: user._id.toString(),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isDonor: user.isDonor,
+      bloodGroup: user.bloodGroup,
+      district: user.district,
+      phone: user.phone,
+      lastDonationDate: user.lastDonationDate,
+      banned: user.banned,
+      banReason: user.banReason,
+      createdAt: user.createdAt,
+      emailVerified: user.emailVerified,
+    }));
+
+    // Return paginated response
+    res.status(200).json({
+      data: usersDto,
+      page: pageNum,
+      limit: limitNum,
+      totalPages,
+      totalCount,
+      hasNextPage,
+      hasPrevPage,
+    });
+  }
+);
+
+// ============================================================================
 // PATCH /api/admin/requests/:id/approve - Approve Request (Inferred)
 // ============================================================================
 
