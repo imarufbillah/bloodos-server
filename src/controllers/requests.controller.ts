@@ -150,6 +150,16 @@ export async function listBloodRequests(
   // Build MongoDB filter
   const filter: any = {};
 
+  // By default, exclude cancelled, expired, and fulfilled requests from public browse
+  // Only show these if explicitly filtered by status query param
+  if (!status) {
+    // Default: only show open and in_progress requests (active requests)
+    filter.status = { $in: [RequestStatus.OPEN, RequestStatus.IN_PROGRESS] };
+  } else {
+    // If status is explicitly provided, use it
+    filter.status = status;
+  }
+
   if (bloodGroup) {
     filter.bloodGroup = bloodGroup;
   }
@@ -160,10 +170,6 @@ export async function listBloodRequests(
 
   if (urgency) {
     filter.urgency = urgency;
-  }
-
-  if (status) {
-    filter.status = status;
   }
 
   // Search across multiple fields (Req 7.11)
