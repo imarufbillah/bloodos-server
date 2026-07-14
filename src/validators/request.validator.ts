@@ -70,17 +70,22 @@ export const createBloodRequestSchema = z.object({
       message: `Urgency must be one of: ${URGENCIES.join(", ")}`,
     }),
 
-    // Req 7.4 - neededByDate must be in the future
+    // Req 7.4 - neededByDate must be today or in the future (not in the past)
     neededByDate: z
       .string()
       .or(z.date())
       .refine(
         (val) => {
           const date = typeof val === "string" ? new Date(val) : val;
-          return date > new Date();
+          const today = new Date();
+          // Set time to start of day for comparison (ignore time component)
+          today.setHours(0, 0, 0, 0);
+          const inputDate = new Date(date);
+          inputDate.setHours(0, 0, 0, 0);
+          return inputDate >= today;
         },
         {
-          message: "Needed by date must be in the future",
+          message: "Needed by date cannot be in the past",
         }
       ),
 
@@ -153,10 +158,15 @@ export const updateBloodRequestSchema = z.object({
       .refine(
         (val) => {
           const date = typeof val === "string" ? new Date(val) : val;
-          return date > new Date();
+          const today = new Date();
+          // Set time to start of day for comparison (ignore time component)
+          today.setHours(0, 0, 0, 0);
+          const inputDate = new Date(date);
+          inputDate.setHours(0, 0, 0, 0);
+          return inputDate >= today;
         },
         {
-          message: "Needed by date must be in the future",
+          message: "Needed by date cannot be in the past",
         }
       )
       .optional(),
