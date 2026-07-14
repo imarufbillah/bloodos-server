@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { ObjectId } from "mongodb";
 import { config } from "../config/env.js";
 import {
   createUnauthorizedError,
@@ -7,6 +8,7 @@ import {
   asyncHandler,
 } from "./error.middleware.js";
 import type { User } from "../types/models/UserExtension.js";
+import { getUsersCollection } from "../db/collections.js";
 
 /**
  * Extended Express Request with authenticated user
@@ -82,7 +84,7 @@ const extractToken = (req: Request): string | null => {
  * 3. Extracts user data from the token payload
  * 
  * @param token - JWT token string
- * @returns User object from token payload
+ * @returns User object from token payload (with potentially stale data)
  * @throws AppError if token is invalid or expired
  */
 const verifyToken = async (token: string): Promise<User> => {
@@ -145,8 +147,9 @@ const verifyToken = async (token: string): Promise<User> => {
  * This middleware:
  * 1. Extracts JWT token from Authorization header
  * 2. Verifies token using better-auth's JWKS endpoint (via jose library)
- * 3. Attaches user data to request as `req.sessionUser`
- * 4. Returns 401 if token is missing, invalid, or expired
+ * 3. Checks current ban status from database (not cached in JWT)
+ * 4. Attaches user data to request as `req.sessionUser`
+ * 5. Returns 401 if token is missing, invalid, expired, or user is banned
  * 
  * Must be applied to all protected routes
  * 
@@ -170,12 +173,26 @@ export const requireAuth = asyncHandler(
       );
     }
 
-    // Verify token and extract user
-    const user = await verifyToken(token);
+    // Verify token and extract user (from JWT payload)
+    const userFromToken = await verifyToken(token);
 
-    // Check if user is banned
-    if (user.banned) {
-      const banMessage = user.banReason ?? null;
+    // IMPORTANT: Check current ban status from database
+    // JWT tokens can be stale if user was banned after login
+    const usersCollection = getUsersCollection();
+    const currentUser = await usersCollection.findOne({
+      _id: new ObjectId(userFromToken.id),
+    });
+
+    if (!currentUser) {
+      throw createUnauthorizedError(
+        "User not found",
+        ERROR_CODES.UNAUTHORIZED
+      );
+    }
+
+    // Check if user is currently banned (from fresh database data)
+    if (currentUser.banned) {
+      const banMessage = currentUser.banReason ?? null;
       const message = banMessage
         ? `Your account has been suspended: ${banMessage}`
         : "Your account has been suspended";
@@ -183,8 +200,27 @@ export const requireAuth = asyncHandler(
       throw createUnauthorizedError(message, ERROR_CODES.FORBIDDEN);
     }
 
-    // Attach user to request
-    (req as AuthenticatedRequest).sessionUser = user;
+    // Attach fresh user data to request
+    const freshUser: User = {
+      id: currentUser._id.toString(),
+      name: currentUser.name,
+      email: currentUser.email,
+      image: currentUser.image,
+      role: currentUser.role,
+      phone: currentUser.phone,
+      district: currentUser.district,
+      bloodGroup: currentUser.bloodGroup,
+      isDonor: currentUser.isDonor,
+      lastDonationDate: currentUser.lastDonationDate,
+      banned: currentUser.banned || false,
+      banReason: currentUser.banReason || null,
+      banExpiresAt: currentUser.banExpiresAt || null,
+      createdAt: currentUser.createdAt,
+      updatedAt: currentUser.updatedAt,
+      emailVerified: currentUser.emailVerified,
+    };
+
+    (req as AuthenticatedRequest).sessionUser = freshUser;
 
     next();
   }
@@ -195,6 +231,7 @@ export const requireAuth = asyncHandler(
  * 
  * Similar to requireAuth but doesn't throw if no token is present.
  * Attaches user to request if valid token exists, otherwise continues without user.
+ * Also checks current ban status from database.
  * 
  * Useful for routes that have different behavior for authenticated/unauthenticated users
  * 
@@ -220,11 +257,36 @@ export const optionalAuth = asyncHandler(
 
     try {
       // Try to verify token
-      const user = await verifyToken(token);
+      const userFromToken = await verifyToken(token);
 
-      // Skip banned users in optional auth
-      if (!user.banned) {
-        (req as AuthenticatedRequest).sessionUser = user;
+      // Check current ban status from database
+      const usersCollection = getUsersCollection();
+      const currentUser = await usersCollection.findOne({
+        _id: new ObjectId(userFromToken.id),
+      });
+
+      // Skip if user not found or banned
+      if (currentUser && !currentUser.banned) {
+        const freshUser: User = {
+          id: currentUser._id.toString(),
+          name: currentUser.name,
+          email: currentUser.email,
+          image: currentUser.image,
+          role: currentUser.role,
+          phone: currentUser.phone,
+          district: currentUser.district,
+          bloodGroup: currentUser.bloodGroup,
+          isDonor: currentUser.isDonor,
+          lastDonationDate: currentUser.lastDonationDate,
+          banned: currentUser.banned || false,
+          banReason: currentUser.banReason || null,
+          banExpiresAt: currentUser.banExpiresAt || null,
+          createdAt: currentUser.createdAt,
+          updatedAt: currentUser.updatedAt,
+          emailVerified: currentUser.emailVerified,
+        };
+
+        (req as AuthenticatedRequest).sessionUser = freshUser;
       }
     } catch (error) {
       // Silently ignore invalid tokens in optional auth
