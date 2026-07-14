@@ -52,6 +52,21 @@ router.get(
 );
 
 /**
+ * GET /api/requests/mine
+ * Get all blood requests created by authenticated user (Req 20.18)
+ * - Auth required
+ * - Returns user's own requests (unmasked contact info)
+ * - Supports pagination via query params: page, limit
+ * 
+ * IMPORTANT: This must come BEFORE /:id route to avoid treating "mine" as an ID
+ */
+router.get(
+  "/mine",
+  requireAuth,
+  getMyBloodRequests
+);
+
+/**
  * GET /api/requests/related/:id
  * Find related blood requests (Req 14.1-14.6)
  * - Public endpoint
@@ -98,19 +113,6 @@ router.post(
   requireAuth,
   validate(createBloodRequestSchema),
   createBloodRequest
-);
-
-/**
- * GET /api/requests/mine
- * Get all blood requests created by authenticated user (Req 20.18)
- * - Auth required
- * - Returns user's own requests (unmasked contact info)
- * - Supports pagination via query params: page, limit
- */
-router.get(
-  "/mine",
-  requireAuth,
-  getMyBloodRequests
 );
 
 /**
