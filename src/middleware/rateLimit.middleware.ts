@@ -64,14 +64,6 @@ const skipRateLimit = (_req: Request): boolean => {
 };
 
 /**
- * Standard key generator - uses IP address
- * Falls back to connection remote address if X-Forwarded-For is not present
- */
-const standardKeyGenerator = (req: Request): string => {
-  return req.ip || req.socket.remoteAddress || "unknown";
-};
-
-/**
  * Auth Rate Limiter (Req 15.1-15.3)
  * 
  * Applied to authentication endpoints:
@@ -89,8 +81,8 @@ export const authRateLimiter: RateLimitRequestHandler = rateLimit({
   // Maximum requests per window: 5 (Req 15.3)
   limit: 5,
 
-  // Use IP address as key
-  keyGenerator: standardKeyGenerator,
+  // Use default key generator (handles IPv6 properly)
+  // No custom keyGenerator needed - library uses req.ip by default
 
   // Custom error handler
   handler: rateLimitHandler,
@@ -131,8 +123,8 @@ export const contactFormRateLimiter: RateLimitRequestHandler = rateLimit({
   // Maximum requests per window: 3 (stricter than auth since it sends emails)
   limit: 3,
 
-  // Use IP address as key
-  keyGenerator: standardKeyGenerator,
+  // Use default key generator (handles IPv6 properly)
+  // No custom keyGenerator needed - library uses req.ip by default
 
   // Custom error handler
   handler: rateLimitHandler,
@@ -162,8 +154,8 @@ export const generalApiRateLimiter: RateLimitRequestHandler = rateLimit({
   // Maximum requests per window: 100
   limit: 100,
 
-  // Use IP address as key
-  keyGenerator: standardKeyGenerator,
+  // Use default key generator (handles IPv6 properly)
+  // No custom keyGenerator needed - library uses req.ip by default
 
   // Custom error handler
   handler: rateLimitHandler,
@@ -194,7 +186,8 @@ export const createCustomRateLimiter = (
   return rateLimit({
     windowMs: windowMinutes * 60 * 1000,
     limit: maxRequests,
-    keyGenerator: standardKeyGenerator,
+    // Use default key generator (handles IPv6 properly)
+    // No custom keyGenerator needed - library uses req.ip by default
     handler: rateLimitHandler,
     skip: skipRateLimit,
     standardHeaders: true,
