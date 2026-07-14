@@ -13,7 +13,7 @@ import { createValidationError, asyncHandler } from "./error.middleware.js";
  * This middleware:
  * 1. Validates request body, query, and params against provided Zod schema
  * 2. Formats validation errors with field-level details (Req 11.2)
- * 3. Replaces req.body, req.query, req.params with validated/transformed data
+ * 3. Stores validated data in req.body, uses Object.defineProperty for query/params
  * 4. Throws AppError with validation_error code on failure
  * 
  * @param schema - Zod schema to validate against
@@ -40,9 +40,28 @@ export const validate = (schema: ZodSchema) => {
         });
 
         // Replace request data with validated/transformed data
+        // Body can be directly assigned
         req.body = (validated as any).body;
-        req.query = (validated as any).query;
-        req.params = (validated as any).params;
+        
+        // Query and params need to use Object.defineProperty in Express 5.x
+        // as they have read-only getters
+        if ((validated as any).query !== undefined) {
+          Object.defineProperty(req, 'query', {
+            value: (validated as any).query,
+            writable: true,
+            enumerable: true,
+            configurable: true
+          });
+        }
+        
+        if ((validated as any).params !== undefined) {
+          Object.defineProperty(req, 'params', {
+            value: (validated as any).params,
+            writable: true,
+            enumerable: true,
+            configurable: true
+          });
+        }
 
         next();
       } catch (error) {
