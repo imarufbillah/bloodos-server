@@ -126,7 +126,7 @@ export async function submitContactForm(
     });
   } catch (error) {
     // Log the error for debugging
-    console.error("Error sending contact form email:", error);
+    logger.error("Error sending contact form email:", error);
 
     // Email delivery failure → 500 (Req 19.10, edge case handling)
     throw createInternalError(

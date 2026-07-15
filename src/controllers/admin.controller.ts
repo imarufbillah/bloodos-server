@@ -1147,7 +1147,7 @@ export const verifyDonation = asyncHandler(
       donationId,
       donation.donationDate,
     ).catch((error) => {
-      console.error("Failed to notify donor of donation verification:", error);
+      logger.error("Failed to notify donor of donation verification:", error);
       // Don't fail the verification if notification fails
     });
 

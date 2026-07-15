@@ -447,7 +447,7 @@ export async function getUserAnalytics(
       },
     });
   } catch (error) {
-    console.error("Error fetching user analytics:", error);
+    logger.error("Error fetching user analytics:", error);
     throw error;
   }
 }

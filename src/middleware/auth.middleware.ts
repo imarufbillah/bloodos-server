@@ -58,21 +58,8 @@ interface BetterAuthSession {
   };
 }
 
-/**
- * Verify session by calling better-auth's session endpoint
- *
- * @param cookies - Cookie string from request
- * @returns Session data from better-auth
- * @throws AppError if session is invalid or expired
- */
 const verifySession = async (cookies: string): Promise<BetterAuthSession> => {
   try {
-    console.log(
-      "Verifying session with cookies:",
-      cookies ? "present" : "missing",
-    );
-
-    // Call better-auth's session endpoint on Next.js frontend
     const response = await fetch(
       `${config.auth.betterAuthUrl}/api/auth/get-session`,
       {
@@ -84,11 +71,7 @@ const verifySession = async (cookies: string): Promise<BetterAuthSession> => {
       },
     );
 
-    console.log("Better-auth session response status:", response.status);
-
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Better-auth session error:", errorText);
       throw createUnauthorizedError(
         "Invalid or expired session",
         ERROR_CODES.INVALID_TOKEN,
@@ -96,11 +79,6 @@ const verifySession = async (cookies: string): Promise<BetterAuthSession> => {
     }
 
     const sessionData = (await response.json()) as BetterAuthSession;
-
-    console.log(
-      "Session verified for user:",
-      sessionData.user?.email || "unknown",
-    );
 
     if (!sessionData.user) {
       throw createUnauthorizedError(
@@ -111,8 +89,6 @@ const verifySession = async (cookies: string): Promise<BetterAuthSession> => {
 
     return sessionData;
   } catch (error) {
-    console.error("Session verification failed:", error);
-
     if (error instanceof Error && "code" in error) {
       throw error;
     }

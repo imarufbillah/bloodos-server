@@ -1,9 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import type { ErrorResponse } from "../types/shared.js";
+import { logger } from "../utils/logger.js";
 
-/**
- * HTTP Status Codes
- */
 export const HTTP_STATUS = {
   OK: 200,
   CREATED: 201,
@@ -258,37 +256,32 @@ export const errorHandler = (
   let statusCode: number = HTTP_STATUS.INTERNAL_SERVER_ERROR;
   let errorResponse: ErrorResponse;
 
-  // Check if this is our custom AppError
   if (error instanceof AppError) {
     statusCode = error.httpStatus;
     errorResponse = error.toJSON();
 
-    // Log operational errors at warning level
     if (error.isOperational) {
-      console.warn(`[${error.code}] ${error.message}`, {
+      logger.warn(error.message, {
+        code: error.code,
         path: req.path,
         method: req.method,
-        details: error.details,
       });
     } else {
-      // Log programming errors at error level with stack trace
-      console.error(`[${error.code}] ${error.message}`, {
+      logger.error(error.message, {
+        code: error.code,
         path: req.path,
         method: req.method,
         stack: error.stack,
-        details: error.details,
       });
     }
   } else {
-    // Handle unexpected errors
-    console.error("Unexpected error:", {
+    logger.error("Unexpected error", {
       message: error.message,
       stack: error.stack,
       path: req.path,
       method: req.method,
     });
 
-    // In production, never leak internal error details (Req 11.8)
     const isProduction = process.env.NODE_ENV === "production";
 
     errorResponse = {
@@ -300,7 +293,6 @@ export const errorHandler = (
     };
   }
 
-  // Set response status and send error
   res.status(statusCode).json(errorResponse);
 };
 

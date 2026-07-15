@@ -95,7 +95,7 @@ export async function createBloodRequest(
     // Notify eligible donors asynchronously (Req 9.1-9.3)
     // Don't await - let it run in background
     notifyNewMatchingRequest(created).catch((error) => {
-      console.error("Failed to notify eligible donors:", error);
+      logger.error("Failed to notify eligible donors:", error);
       // Don't fail the request creation if notification fails
     });
 
@@ -124,7 +124,7 @@ export async function createBloodRequest(
       updatedAt: created.updatedAt.toISOString(),
     });
   } catch (error) {
-    console.error("Error creating blood request:", error);
+    logger.error("Error creating blood request:", error);
     throw error;
   }
 }
@@ -316,7 +316,7 @@ export async function listBloodRequests(
 
     res.status(HTTP_STATUS.OK).json(paginatedResponse);
   } catch (error) {
-    console.error("Error listing blood requests:", error);
+    logger.error("Error listing blood requests:", error);
     throw error;
   }
 }
@@ -391,7 +391,7 @@ export async function getBloodRequestById(
 
     res.status(HTTP_STATUS.OK).json(response);
   } catch (error) {
-    console.error(`Error fetching blood request ${id}:`, error);
+    logger.error(`Error fetching blood request ${id}:`, error);
     throw error;
   }
 }
@@ -455,7 +455,7 @@ export async function getMyBloodRequests(
 
     res.status(HTTP_STATUS.OK).json(paginatedResponse);
   } catch (error) {
-    console.error("Error fetching user's blood requests:", error);
+    logger.error("Error fetching user's blood requests:", error);
     throw error;
   }
 }
@@ -556,7 +556,7 @@ export async function updateBloodRequestStatus(
           request._id,
           request.patientName,
         ).catch((error) => {
-          console.error("Failed to notify request status change:", error);
+          logger.error("Failed to notify request status change:", error);
         });
       }
     }
@@ -576,7 +576,7 @@ export async function updateBloodRequestStatus(
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error(`Error updating blood request status ${id}:`, error);
+    logger.error(`Error updating blood request status ${id}:`, error);
     throw error;
   }
 }
@@ -659,7 +659,7 @@ export async function deleteBloodRequest(
       _id: id,
     });
   } catch (error) {
-    console.error(`Error deleting blood request ${id}:`, error);
+    logger.error(`Error deleting blood request ${id}:`, error);
     throw error;
   }
 }
@@ -817,7 +817,7 @@ export async function respondToBloodRequest(
       sessionUser.name || "A donor",
       request._id,
     ).catch((error) => {
-      console.error("Failed to notify request owner:", error);
+      logger.error("Failed to notify request owner:", error);
     });
 
     // Invalidate relevant caches
@@ -837,7 +837,7 @@ export async function respondToBloodRequest(
       updatedAt: donorResponse.updatedAt.toISOString(),
     });
   } catch (error) {
-    console.error(`Error responding to blood request ${requestId}:`, error);
+    logger.error(`Error responding to blood request ${requestId}:`, error);
     throw error;
   }
 }
@@ -930,7 +930,7 @@ export async function updateResponseStatus(
         request._id,
         request.patientName,
       ).catch((error) => {
-        console.error("Failed to notify response status change:", error);
+        logger.error("Failed to notify response status change:", error);
       });
     }
 
@@ -943,7 +943,7 @@ export async function updateResponseStatus(
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error(
+    logger.error(
       `Error updating response status ${responseId} for request ${requestId}:`,
       error,
     );
@@ -1016,7 +1016,7 @@ export async function retractResponse(
       _id: responseId,
     });
   } catch (error) {
-    console.error(
+    logger.error(
       `Error retracting response ${responseId} for request ${requestId}:`,
       error,
     );
@@ -1109,7 +1109,7 @@ export async function getRequestResponses(
       total: responses.length,
     });
   } catch (error) {
-    console.error(`Error fetching responses for request ${requestId}:`, error);
+    logger.error(`Error fetching responses for request ${requestId}:`, error);
     throw error;
   }
 }
@@ -1221,7 +1221,7 @@ export async function getRelatedRequests(
       total: masked.length,
     });
   } catch (error) {
-    console.error(`Error fetching related requests for ${requestId}:`, error);
+    logger.error(`Error fetching related requests for ${requestId}:`, error);
     throw error;
   }
 }

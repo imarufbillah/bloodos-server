@@ -3,6 +3,7 @@ import {
   getNotificationsCollection,
   getUsersCollection,
 } from "../db/collections.js";
+import { logger } from "../utils/logger.js";
 import type {
   Notification,
   CreateNotificationInput,
@@ -43,7 +44,7 @@ export async function createNotification(
     await getNotificationsCollection().insertOne(notification);
   } catch (error) {
     // Log error and throw to bubble up to calling route (Req 9.11)
-    console.error("Failed to create notification:", error);
+    logger.error("Failed to create notification:", error);
     throw new Error("Failed to create notification");
   }
 }
@@ -71,7 +72,7 @@ export async function createBulkNotifications(
 
     await getNotificationsCollection().insertMany(notifications);
   } catch (error) {
-    console.error("Failed to create bulk notifications:", error);
+    logger.error("Failed to create bulk notifications:", error);
     throw new Error("Failed to create bulk notifications");
   }
 }
@@ -131,16 +132,17 @@ export async function findEligibleDonorsForRequest(
     );
 
     if (filtered.length === 0) {
-      // No eligible donors found - log but don't throw (Req 9.2)
-      console.log(
-        `No eligible donors found for request ${request._id} (${request.bloodGroup} in ${request.district})`,
-      );
+      logger.debug("No eligible donors found", {
+        requestId: request._id.toString(),
+        bloodGroup: request.bloodGroup,
+        district: request.district,
+      });
     }
 
     return filtered;
   } catch (error) {
     // Log error but return empty array rather than throwing (Req 9.2)
-    console.error("Error finding eligible donors:", error);
+    logger.error("Error finding eligible donors:", error);
     return [];
   }
 }
@@ -333,7 +335,7 @@ export async function notifySystemAnnouncement(
   const users = await usersCollection.find(query).toArray();
 
   if (users.length === 0) {
-    console.log("No users match the announcement filter");
+    logger.debug("No users match the announcement filter");
     return;
   }
 
@@ -501,11 +503,8 @@ export async function notifyExpiringRequests(): Promise<void> {
     })
     .toArray();
 
-  console.log(
-    `Found ${expiringRequests.length} requests expiring in the next 24 hours`,
-  );
+  logger.debug("Checking expiring requests", { count: expiringRequests.length });
 
-  // Notify each request owner
   for (const request of expiringRequests) {
     try {
       await notifyRequestExpiringSoon(
@@ -515,7 +514,7 @@ export async function notifyExpiringRequests(): Promise<void> {
         request.neededByDate,
       );
     } catch (error) {
-      console.error(`Failed to notify expiring request ${request._id}:`, error);
+      logger.error(`Failed to notify expiring request ${request._id}:`, error);
       // Continue with other notifications even if one fails
     }
   }

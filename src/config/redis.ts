@@ -1,89 +1,55 @@
-/**
- * Redis Configuration
- *
- * Sets up Redis client for caching layer with proper error handling
- * and connection management.
- */
-
 import { Redis } from "ioredis";
+import { logger } from "../utils/logger.js";
 
-/**
- * Redis client instance
- * Configured with retry strategy and error handling
- */
 const redis = new Redis({
   host: process.env.REDIS_HOST || "localhost",
   port: Number(process.env.REDIS_PORT) || 6379,
   password: process.env.REDIS_PASSWORD || undefined,
   db: Number(process.env.REDIS_DB) || 0,
-
-  // Retry strategy: exponential backoff with max 2 seconds
   retryStrategy: (times: number) => {
     const delay = Math.min(times * 50, 2000);
     return delay;
   },
-
-  // Connection timeout
   connectTimeout: 10000,
-
-  // Max retry attempts
   maxRetriesPerRequest: 3,
-
-  // Enable offline queue to buffer commands when disconnected
   enableOfflineQueue: true,
-
-  // Lazy connect - don't connect until first command
   lazyConnect: false,
 });
 
-/**
- * Connection event handlers
- */
 redis.on("connect", () => {
-  console.log("📦 Redis: Connecting...");
+  logger.debug("Redis connecting...");
 });
 
 redis.on("ready", () => {
-  console.log("✅ Redis: Connected and ready");
+  logger.info("Redis connected and ready");
 });
 
 redis.on("error", (err: Error) => {
-  console.error("❌ Redis connection error:", err.message);
-  // Don't throw - allow application to continue without cache
+  logger.error("Redis connection error", { message: err.message });
 });
 
 redis.on("close", () => {
-  console.log("🔌 Redis: Connection closed");
+  logger.debug("Redis connection closed");
 });
 
 redis.on("reconnecting", () => {
-  console.log("🔄 Redis: Reconnecting...");
+  logger.debug("Redis reconnecting...");
 });
 
-/**
- * Graceful shutdown handler
- */
 export async function closeRedisConnection(): Promise<void> {
   try {
     await redis.quit();
-    console.log("✅ Redis connection closed gracefully");
+    logger.info("Redis connection closed gracefully");
   } catch (error) {
-    console.error("❌ Error closing Redis connection:", error);
-    // Force close if graceful shutdown fails
+    logger.error("Error closing Redis connection", { error });
     redis.disconnect();
   }
 }
 
-/**
- * Check if Redis is connected and ready
- */
 export function isRedisReady(): boolean {
   return redis.status === "ready";
 }
 
-/**
- * Get Redis connection status
- */
 export function getRedisStatus(): string {
   return redis.status;
 }

@@ -140,7 +140,7 @@ export const requestContact = async (
     await contactAuditLogsCollection.insertOne(auditLog);
   } catch (error) {
     // If audit log fails, do NOT reveal contact info (Req 4.6)
-    console.error("Failed to create contact audit log:", error);
+    logger.error("Failed to create contact audit log:", error);
     throw createInternalError(
       "Failed to log contact request. Contact information not revealed for security.",
     );
@@ -152,7 +152,7 @@ export const requestContact = async (
   } catch (error) {
     // Log notification failure but don't block the contact reveal
     // The audit log succeeded, so the reveal proceeds
-    console.error("Failed to notify donor of contact request:", error);
+    logger.error("Failed to notify donor of contact request:", error);
   }
 
   // Return full unmasked contact information (Req 4.7)

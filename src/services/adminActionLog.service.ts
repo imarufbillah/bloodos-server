@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { getAdminActionLogsCollection } from "../db/collections.js";
+import { logger } from "../utils/logger.js";
 import type {
   AdminActionLog,
   CreateAdminActionLogInput,
@@ -83,7 +84,7 @@ export async function logAdminAction(
     } as AdminActionLog;
   } catch (error) {
     // Log the error but still throw - audit failures should be visible
-    console.error("Failed to create admin action log:", error);
+    logger.error("Failed to create admin action log:", error);
     throw new Error("Failed to create audit log entry");
   }
 }

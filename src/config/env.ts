@@ -1,12 +1,8 @@
 import dotenv from "dotenv";
 import { z } from "zod";
 
-// Load environment variables
 dotenv.config();
 
-/**
- * Environment variable schema validation
- */
 const envSchema = z.object({
   PORT: z.string().default("5000"),
   NODE_ENV: z
@@ -20,17 +16,11 @@ const envSchema = z.object({
     .min(1, "IMGBB_API_KEY is required for avatar uploads"),
 });
 
-/**
- * Parse and validate environment variables
- * Throws if required variables are missing or invalid
- */
 const parseEnv = () => {
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
-    console.error("❌ Invalid environment variables:");
-    console.error(result.error.format());
-    throw new Error("Environment validation failed");
+    throw new Error(`Environment validation failed: ${result.error.format()}`);
   }
 
   return result.data;
@@ -38,9 +28,6 @@ const parseEnv = () => {
 
 export const env = parseEnv();
 
-/**
- * Type-safe environment variable access
- */
 export const config = {
   port: parseInt(env.PORT, 10),
   nodeEnv: env.NODE_ENV,
