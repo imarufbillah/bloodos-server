@@ -56,6 +56,20 @@ export const createIndexes = async (db: Db): Promise<void> => {
       { name: "idx_blood_requests_expiration" }
     );
 
+    // Compound index for user requests by status (aggregation optimization)
+    await safeCreateIndex(
+      bloodRequestsCollection,
+      { userId: 1, status: 1 },
+      { name: "idx_blood_requests_user_status" }
+    );
+
+    // Compound index for sorting by urgency and creation date
+    await safeCreateIndex(
+      bloodRequestsCollection,
+      { urgency: 1, createdAt: -1 },
+      { name: "idx_blood_requests_urgency_date" }
+    );
+
     console.log("  ✓ Blood requests indexes created");
 
     // ========================================================================
@@ -82,6 +96,13 @@ export const createIndexes = async (db: Db): Promise<void> => {
       responsesCollection,
       { requestId: 1, userId: 1 },
       { name: "idx_responses_unique", unique: true }
+    );
+
+    // Compound index for user responses by status (aggregation optimization)
+    await safeCreateIndex(
+      responsesCollection,
+      { userId: 1, status: 1 },
+      { name: "idx_responses_user_status" }
     );
 
     console.log("  ✓ Responses indexes created");
@@ -207,8 +228,8 @@ export const verifyIndexes = async (db: Db): Promise<boolean> => {
 
   try {
     const collections = [
-      { name: COLLECTION_NAMES.BLOOD_REQUESTS, expectedCount: 3 },
-      { name: COLLECTION_NAMES.RESPONSES, expectedCount: 3 },
+      { name: COLLECTION_NAMES.BLOOD_REQUESTS, expectedCount: 5 },
+      { name: COLLECTION_NAMES.RESPONSES, expectedCount: 4 },
       { name: COLLECTION_NAMES.DONATIONS, expectedCount: 2 },
       { name: COLLECTION_NAMES.USERS, expectedCount: 1 },
       { name: COLLECTION_NAMES.NOTIFICATIONS, expectedCount: 2 },
