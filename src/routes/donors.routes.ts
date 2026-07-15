@@ -5,6 +5,7 @@
 
 import { Router } from "express";
 import { requireAuth, optionalAuth } from "../middleware/auth.middleware.js";
+import { CacheStrategies } from "../middleware/cache.middleware.js";
 import { listDonors, requestContact } from "../controllers/donors.controller.js";
 
 const router = Router();
@@ -15,6 +16,7 @@ const router = Router();
  * 
  * Public endpoint (optional auth for future personalization)
  * Query: bloodGroup, district, page, limit
+ * Cached for 5 minutes (donor data changes infrequently)
  * 
  * Requirements:
  * - Req 17.3: Endpoint exists
@@ -24,6 +26,7 @@ const router = Router();
 router.get(
   "/",
   optionalAuth, // Public but can use auth for future features
+  CacheStrategies.publicList(), // Cache donor list
   listDonors as any // Type compatibility with Express handler
 );
 

@@ -8,6 +8,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
+import { CacheStrategies } from "../middleware/cache.middleware.js";
 import {
   updateProfileSchema,
   createDonationSchema,
@@ -20,6 +21,7 @@ import {
   getUserDonations,
   createDonation,
   getUserResponses,
+  getUserAnalytics,
 } from "../controllers/users.controller.js";
 
 const router = Router();
@@ -33,8 +35,18 @@ const router = Router();
  * Get authenticated user's profile (Req 13.2-13.3)
  * - Auth required
  * - Returns all personal information fields
+ * - Cached per user for 1 minute
  */
-router.get("/me", requireAuth, getCurrentUser);
+router.get("/me", requireAuth, CacheStrategies.userSpecific(), getCurrentUser);
+
+/**
+ * GET /api/users/me/analytics
+ * Get comprehensive user analytics and statistics
+ * - Auth required
+ * - Returns requests, responses, donations statistics with aggregation
+ * - Cached per user for 1 minute
+ */
+router.get("/me/analytics", requireAuth, CacheStrategies.userSpecific(), getUserAnalytics);
 
 /**
  * PATCH /api/users/me
@@ -56,10 +68,12 @@ router.patch("/me", requireAuth, validate(updateProfileSchema), updateUserProfil
  * - Returns paginated list of donations
  * - Sorted by donation date descending (reverse chronological)
  * - Shows verified status
+ * - Cached per user for 1 minute
  */
 router.get(
   "/me/donations",
   requireAuth,
+  CacheStrategies.userSpecific(),
   validate(getDonationsQuerySchema),
   getUserDonations as any
 );
@@ -74,10 +88,12 @@ router.get(
  * - Auth required
  * - Returns paginated list of user's responses to blood requests
  * - Includes parent request summary for context
+ * - Cached per user for 1 minute
  */
 router.get(
   "/me/responses",
   requireAuth,
+  CacheStrategies.userSpecific(),
   validate(getResponsesQuerySchema),
   getUserResponses as any
 );

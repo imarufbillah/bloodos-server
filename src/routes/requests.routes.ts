@@ -7,6 +7,7 @@
 import { Router } from "express";
 import { requireAuth, optionalAuth } from "../middleware/auth.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
+import { CacheStrategies } from "../middleware/cache.middleware.js";
 import {
   createBloodRequestSchema,
   updateRequestStatusSchema,
@@ -43,10 +44,12 @@ const router = Router();
  * - Supports query params: bloodGroup, district, urgency, status, search, sort, page, limit
  * - Contact info masked for non-owners (Req 4.1-4.4)
  * - Returns PaginatedResponse<BloodRequest> (Req 12.1)
+ * - Cached for 2 minutes (public cache)
  */
 router.get(
   "/",
   optionalAuth, // Optional auth to enable contact masking based on ownership
+  CacheStrategies.publicList(), // Cache public list requests
   validate(listRequestsQuerySchema),
   listBloodRequests as any // Type compatibility with Express handler
 );
@@ -57,12 +60,14 @@ router.get(
  * - Auth required
  * - Returns user's own requests (unmasked contact info)
  * - Supports pagination via query params: page, limit
+ * - Cached per user for 1 minute
  * 
  * IMPORTANT: This must come BEFORE /:id route to avoid treating "mine" as an ID
  */
 router.get(
   "/mine",
   requireAuth,
+  CacheStrategies.userSpecific(), // User-specific cache
   getMyBloodRequests
 );
 
@@ -74,12 +79,14 @@ router.get(
  * - Only open/in_progress requests
  * - Ranks by urgency then date
  * - Limit 6 results
+ * - Cached for 2 minutes (public cache)
  * 
  * IMPORTANT: This must come BEFORE /:id route to avoid route collision
  */
 router.get(
   "/related/:id",
   optionalAuth,
+  CacheStrategies.publicDetail(), // Cache related requests
   getRelatedRequests
 );
 
@@ -89,10 +96,12 @@ router.get(
  * - Public endpoint
  * - Contact info masked for non-owners (Req 4.1-4.4)
  * - Auto-expires if neededByDate has passed (Req 3.5)
+ * - Cached for 2 minutes (public cache)
  */
 router.get(
   "/:id",
   optionalAuth, // Optional auth to enable contact masking based on ownership
+  CacheStrategies.publicDetail(), // Cache single request details
   getBloodRequestById
 );
 

@@ -17,6 +17,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { requireAdmin } from "../middleware/role.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
+import { CacheStrategies } from "../middleware/cache.middleware.js";
 import {
   getAdminStats,
   getAdminRequests,
@@ -62,10 +63,12 @@ router.use(requireAdmin);
  * - Requests by district (BarChart data)
  * - 30-day request trend (LineChart data)
  * 
+ * Cached for 5 minutes (expensive aggregation query)
+ * 
  * @access Admin only
  * @see Req 18.3-18.8
  */
-router.get("/stats", getAdminStats);
+router.get("/stats", CacheStrategies.adminStats(), getAdminStats);
 
 // ============================================================================
 // Admin Request Moderation Routes
