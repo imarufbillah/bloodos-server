@@ -1,5 +1,4 @@
 import type { Request, Response, NextFunction } from "express";
-import { createRemoteJWKSet, jwtVerify } from "jose";
 import { ObjectId } from "mongodb";
 import { config } from "../config/env.js";
 import {
@@ -27,115 +26,90 @@ export const isAuthenticatedRequest = (
 };
 
 /**
- * JWT Payload structure from better-auth
- * 
- * better-auth includes the full user object in the JWT payload
+ * Session data structure from better-auth
  */
-interface JWTPayload {
-  sub: string; // User ID
-  iat: number; // Issued at
-  exp: number; // Expiration time
-  // better-auth includes the full session data
-  session?: {
+interface BetterAuthSession {
+  session: {
+    id: string;
     userId: string;
-    user: User;
-  } | null;
+    expiresAt: string;
+    token: string;
+    ipAddress?: string;
+    userAgent?: string;
+  };
+  user: {
+    id: string;
+    email: string;
+    emailVerified: boolean;
+    name: string;
+    createdAt: string;
+    updatedAt: string;
+    image?: string | null;
+    // Extended fields
+    role?: 'user' | 'admin';
+    phone?: string;
+    district?: string;
+    bloodGroup?: string;
+    isDonor?: boolean;
+    lastDonationDate?: string | null;
+    banned?: boolean;
+    banReason?: string | null;
+    banExpiresAt?: string | null;
+  };
 }
 
 /**
- * JWKS instance for JWT verification
- * Created once and reused for all verifications
+ * Verify session by calling better-auth's session endpoint
  * 
- * This fetches the public keys from better-auth's JWKS endpoint
- * and caches them for efficient verification
+ * @param cookies - Cookie string from request
+ * @returns Session data from better-auth
+ * @throws AppError if session is invalid or expired
  */
-const JWKS = createRemoteJWKSet(new URL(config.auth.jwksUrl));
-
-/**
- * Extract JWT token from Authorization header
- * 
- * Supports format: "Bearer <token>"
- * 
- * @param req - Express request
- * @returns JWT token string or null
- */
-const extractToken = (req: Request): string | null => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    return null;
-  }
-
-  // Check for Bearer token format
-  const parts = authHeader.split(" ");
-  if (parts.length !== 2 || parts[0] !== "Bearer") {
-    return null;
-  }
-
-  return parts[1] || null;
-};
-
-/**
- * Verify JWT token using better-auth's JWKS endpoint
- * 
- * This function:
- * 1. Verifies the token signature using JWKS
- * 2. Validates token expiration
- * 3. Extracts user data from the token payload
- * 
- * @param token - JWT token string
- * @returns User object from token payload (with potentially stale data)
- * @throws AppError if token is invalid or expired
- */
-const verifyToken = async (token: string): Promise<User> => {
+const verifySession = async (cookies: string): Promise<BetterAuthSession> => {
   try {
-    // Verify token signature and expiration using JWKS
-    const { payload } = await jwtVerify<JWTPayload>(token, JWKS, {
-      // Issuer validation (optional - better-auth doesn't set iss by default)
-      // issuer: config.auth.betterAuthUrl,
+    console.log('Verifying session with cookies:', cookies ? 'present' : 'missing');
+    
+    // Call better-auth's session endpoint on Next.js frontend
+    const response = await fetch(`${config.auth.betterAuthUrl}/api/auth/get-session`, {
+      method: 'GET',
+      headers: {
+        'Cookie': cookies,
+        'Content-Type': 'application/json',
+      },
     });
 
-    // Extract user from payload
-    // better-auth stores full session data in the token
-    if (!payload.session?.user) {
+    console.log('Better-auth session response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Better-auth session error:', errorText);
       throw createUnauthorizedError(
-        "Invalid token structure",
+        "Invalid or expired session",
         ERROR_CODES.INVALID_TOKEN
       );
     }
 
-    return payload.session.user;
-  } catch (error) {
-    // Handle specific JWT errors
-    if (error instanceof Error) {
-      // Token expired
-      if (error.name === "JWTExpired") {
-        throw createUnauthorizedError(
-          "Token has expired",
-          ERROR_CODES.TOKEN_EXPIRED
-        );
-      }
+    const sessionData = await response.json() as BetterAuthSession;
 
-      // Invalid signature or other JWT errors
-      if (
-        error.name === "JWSSignatureVerificationFailed" ||
-        error.name === "JWTInvalid"
-      ) {
-        throw createUnauthorizedError(
-          "Invalid token",
-          ERROR_CODES.INVALID_TOKEN
-        );
-      }
+    console.log('Session verified for user:', sessionData.user?.email || 'unknown');
+
+    if (!sessionData.user) {
+      throw createUnauthorizedError(
+        "Invalid session structure",
+        ERROR_CODES.INVALID_TOKEN
+      );
     }
 
-    // Re-throw if it's already an AppError
+    return sessionData;
+  } catch (error) {
+    console.error('Session verification failed:', error);
+    
     if (error instanceof Error && "code" in error) {
       throw error;
     }
 
-    // Generic error
     throw createUnauthorizedError(
-      "Token verification failed",
+      "Session verification failed",
       ERROR_CODES.INVALID_TOKEN
     );
   }
@@ -145,11 +119,11 @@ const verifyToken = async (token: string): Promise<User> => {
  * Authentication Middleware (Req 1.1, 1.2, 5.2)
  * 
  * This middleware:
- * 1. Extracts JWT token from Authorization header
- * 2. Verifies token using better-auth's JWKS endpoint (via jose library)
- * 3. Checks current ban status from database (not cached in JWT)
+ * 1. Extracts session cookie from request
+ * 2. Verifies session by calling better-auth's session endpoint
+ * 3. Checks current ban status from database
  * 4. Attaches user data to request as `req.sessionUser`
- * 5. Returns 401 if token is missing, invalid, expired, or user is banned
+ * 5. Returns 401 if session is missing, invalid, expired, or user is banned
  * 
  * Must be applied to all protected routes
  * 
@@ -163,24 +137,24 @@ const verifyToken = async (token: string): Promise<User> => {
  */
 export const requireAuth = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    // Extract token from Authorization header
-    const token = extractToken(req);
+    // Extract cookies from request
+    const cookies = req.headers.cookie;
 
-    if (!token) {
+    if (!cookies) {
       throw createUnauthorizedError(
-        "Authentication required. Please provide a valid token.",
+        "Authentication required. Please log in.",
         ERROR_CODES.UNAUTHORIZED
       );
     }
 
-    // Verify token and extract user (from JWT payload)
-    const userFromToken = await verifyToken(token);
+    // Verify session with better-auth
+    const sessionData = await verifySession(cookies);
 
     // IMPORTANT: Check current ban status from database
-    // JWT tokens can be stale if user was banned after login
+    // Session data can be stale if user was banned after login
     const usersCollection = getUsersCollection();
     const currentUser = await usersCollection.findOne({
-      _id: new ObjectId(userFromToken.id),
+      _id: new ObjectId(sessionData.user.id),
     });
 
     if (!currentUser) {
@@ -229,8 +203,8 @@ export const requireAuth = asyncHandler(
 /**
  * Optional Authentication Middleware
  * 
- * Similar to requireAuth but doesn't throw if no token is present.
- * Attaches user to request if valid token exists, otherwise continues without user.
+ * Similar to requireAuth but doesn't throw if no cookies are present.
+ * Attaches user to request if valid session exists, otherwise continues without user.
  * Also checks current ban status from database.
  * 
  * Useful for routes that have different behavior for authenticated/unauthenticated users
@@ -248,21 +222,21 @@ export const requireAuth = asyncHandler(
  */
 export const optionalAuth = asyncHandler(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const token = extractToken(req);
+    const cookies = req.headers.cookie;
 
-    // If no token, continue without authentication
-    if (!token) {
+    // If no cookies, continue without authentication
+    if (!cookies) {
       return next();
     }
 
     try {
-      // Try to verify token
-      const userFromToken = await verifyToken(token);
+      // Try to verify session
+      const sessionData = await verifySession(cookies);
 
       // Check current ban status from database
       const usersCollection = getUsersCollection();
       const currentUser = await usersCollection.findOne({
-        _id: new ObjectId(userFromToken.id),
+        _id: new ObjectId(sessionData.user.id),
       });
 
       // Skip if user not found or banned
@@ -289,7 +263,7 @@ export const optionalAuth = asyncHandler(
         (req as AuthenticatedRequest).sessionUser = freshUser;
       }
     } catch (error) {
-      // Silently ignore invalid tokens in optional auth
+      // Silently ignore invalid sessions in optional auth
       // This allows the request to continue as unauthenticated
     }
 

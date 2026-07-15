@@ -13,7 +13,6 @@ const envSchema = z.object({
   MONGODB_URI: z.string().url("MONGODB_URI must be a valid URL"),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
   BETTER_AUTH_URL: z.string().url().optional(),
-  JWT_JWKS_URL: z.string().url().optional(),
 });
 
 /**
@@ -54,6 +53,5 @@ export const config = {
   },
   auth: {
     betterAuthUrl: env.BETTER_AUTH_URL || env.FRONTEND_URL,
-    jwksUrl: env.JWT_JWKS_URL || `${env.FRONTEND_URL}/api/auth/jwks`,
   },
 } as const;
