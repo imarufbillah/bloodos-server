@@ -1,10 +1,3 @@
-/**
- * Users Controller (Phase 5h)
- * Implements user profile, donation history, and response history endpoints
- * Requirements: Req 13.5 (profile update), Req 13.8-13.9 (donations), Req 13.10 (responses)
- * Inferred: POST /api/donations (plan §0.A), GET /api/users/me/responses (plan §0.E)
- */
-
 import type { Request, Response } from "express";
 import { ObjectId } from "mongodb";
 import {
@@ -26,7 +19,10 @@ import { buildPaginatedResponse, calculateSkip } from "../utils/pagination.js";
 import { CacheService, CacheKeys } from "../services/cache.service.js";
 import type { UpdateProfileInput } from "../validators/user.validator.js";
 import type { CreateDonationInput } from "../validators/user.validator.js";
-import type { GetDonationsQuery, GetResponsesQuery } from "../validators/user.validator.js";
+import type {
+  GetDonationsQuery,
+  GetResponsesQuery,
+} from "../validators/user.validator.js";
 import type {
   UserDto,
   UserDonationHistoryDto,
@@ -45,14 +41,9 @@ declare module "express" {
 // Get Current User Profile (GET /api/users/me)
 // ============================================================================
 
-/**
- * Get authenticated user's profile (Req 13.2-13.3)
- * - Returns all personal information fields
- * - Auth required
- */
 export async function getCurrentUser(
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
 
@@ -89,15 +80,9 @@ export async function getCurrentUser(
 // Update User Profile (PATCH /api/users/me)
 // ============================================================================
 
-/**
- * Update authenticated user's profile (Req 13.4-13.5)
- * - Allows updating whitelisted personal info fields only
- * - NEVER allows updating role (enforced by validator)
- * - Auth required
- */
 export async function updateUserProfile(
   req: Request<{}, {}, UpdateProfileInput>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const updates = req.body;
@@ -113,15 +98,17 @@ export async function updateUserProfile(
   if (updates.name !== undefined) updateDoc.name = updates.name;
   if (updates.phone !== undefined) updateDoc.phone = updates.phone;
   if (updates.district !== undefined) updateDoc.district = updates.district;
-  if (updates.bloodGroup !== undefined) updateDoc.bloodGroup = updates.bloodGroup;
+  if (updates.bloodGroup !== undefined)
+    updateDoc.bloodGroup = updates.bloodGroup;
   if (updates.isDonor !== undefined) updateDoc.isDonor = updates.isDonor;
-  if (updates.lastDonationDate !== undefined) updateDoc.lastDonationDate = updates.lastDonationDate;
+  if (updates.lastDonationDate !== undefined)
+    updateDoc.lastDonationDate = updates.lastDonationDate;
 
   // Update user
   const result = await collection.findOneAndUpdate(
     { _id: new ObjectId(sessionUser.id) },
     { $set: updateDoc },
-    { returnDocument: "after" }
+    { returnDocument: "after" },
   );
 
   if (!result) {
@@ -131,7 +118,7 @@ export async function updateUserProfile(
   // Invalidate user-specific caches
   await CacheService.invalidateMultiple([
     CacheKeys.endpointPattern(`/api/users/me:user:${sessionUser.id}`),
-    CacheKeys.endpointPattern('/api/donors'), // If donor status changed
+    CacheKeys.endpointPattern("/api/donors"), // If donor status changed
   ]);
 
   // Map to DTO
@@ -159,16 +146,9 @@ export async function updateUserProfile(
 // Get User Donation History (GET /api/users/me/donations)
 // ============================================================================
 
-/**
- * Get authenticated user's donation history (Req 13.8-13.9)
- * - Returns paginated list of donations (paginated if >10 per Req 13.9)
- * - Sorted by donation date descending (reverse chronological per Req 13.8)
- * - Shows verified status (Req 13.9)
- * - Auth required
- */
 export async function getUserDonations(
   req: Request<{}, {}, {}, GetDonationsQuery>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const { page, limit } = req.query;
@@ -212,16 +192,9 @@ export async function getUserDonations(
 // Create Donation (POST /api/donations)
 // ============================================================================
 
-/**
- * Self-report a blood donation (inferred from plan §0.A)
- * - Donor reports their own donation
- * - Creates unverified donation record
- * - Updates user's lastDonationDate
- * - Auth required
- */
 export async function createDonation(
   req: Request<{}, {}, CreateDonationInput>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const body = req.body;
@@ -267,7 +240,7 @@ export async function createDonation(
           lastDonationDate: new Date(body.donationDate),
           updatedAt: now,
         },
-      }
+      },
     );
   }
 
@@ -297,15 +270,9 @@ export async function createDonation(
 // Get User Analytics (GET /api/users/me/analytics)
 // ============================================================================
 
-/**
- * Get comprehensive user analytics and statistics
- * - Uses single aggregation query for optimal performance
- * - Returns requests created, responses given, donations, fulfillment rates
- * - Auth required
- */
 export async function getUserAnalytics(
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const userId = new ObjectId(sessionUser.id);
@@ -316,92 +283,100 @@ export async function getUserAnalytics(
     const donationsCollection = getDonationsCollection();
 
     // Single aggregation query for comprehensive stats
-    const analyticsResult = await requestsCollection.aggregate([
-      {
-        $facet: {
-          // Requests created by user with status breakdown
-          requestsCreated: [
-            { $match: { userId } },
-            {
-              $group: {
-                _id: '$status',
-                count: { $sum: 1 }
-              }
-            }
-          ],
-          
-          // Total requests count
-          totalRequests: [
-            { $match: { userId } },
-            { $count: 'total' }
-          ],
-          
-          // Responses received on user's requests
-          responsesReceived: [
-            { $match: { userId } },
-            {
-              $lookup: {
-                from: 'responses',
-                localField: '_id',
-                foreignField: 'requestId',
-                as: 'responses'
-              }
-            },
-            { $unwind: { path: '$responses', preserveNullAndEmptyArrays: false } },
-            { $count: 'total' }
-          ],
-          
-          // Activity timeline (last 6 months)
-          activityTimeline: [
-            {
-              $match: {
-                userId,
-                createdAt: {
-                  $gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000)
-                }
-              }
-            },
-            {
-              $group: {
-                _id: {
-                  month: { $month: '$createdAt' },
-                  year: { $year: '$createdAt' }
+    const analyticsResult = await requestsCollection
+      .aggregate([
+        {
+          $facet: {
+            // Requests created by user with status breakdown
+            requestsCreated: [
+              { $match: { userId } },
+              {
+                $group: {
+                  _id: "$status",
+                  count: { $sum: 1 },
                 },
-                count: { $sum: 1 }
-              }
-            },
-            { $sort: { '_id.year': 1, '_id.month': 1 } },
-            {
-              $project: {
-                month: '$_id.month',
-                year: '$_id.year',
-                count: 1,
-                _id: 0
-              }
-            }
-          ]
-        }
-      }
-    ]).toArray();
+              },
+            ],
+
+            // Total requests count
+            totalRequests: [{ $match: { userId } }, { $count: "total" }],
+
+            // Responses received on user's requests
+            responsesReceived: [
+              { $match: { userId } },
+              {
+                $lookup: {
+                  from: "responses",
+                  localField: "_id",
+                  foreignField: "requestId",
+                  as: "responses",
+                },
+              },
+              {
+                $unwind: {
+                  path: "$responses",
+                  preserveNullAndEmptyArrays: false,
+                },
+              },
+              { $count: "total" },
+            ],
+
+            // Activity timeline (last 6 months)
+            activityTimeline: [
+              {
+                $match: {
+                  userId,
+                  createdAt: {
+                    $gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000),
+                  },
+                },
+              },
+              {
+                $group: {
+                  _id: {
+                    month: { $month: "$createdAt" },
+                    year: { $year: "$createdAt" },
+                  },
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { "_id.year": 1, "_id.month": 1 } },
+              {
+                $project: {
+                  month: "$_id.month",
+                  year: "$_id.year",
+                  count: 1,
+                  _id: 0,
+                },
+              },
+            ],
+          },
+        },
+      ])
+      .toArray();
 
     // Get responses given by user as donor with separate aggregation
-    const responsesGivenResult = await responsesCollection.aggregate([
-      { $match: { userId } },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
-    ]).toArray();
+    const responsesGivenResult = await responsesCollection
+      .aggregate([
+        { $match: { userId } },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 },
+          },
+        },
+      ])
+      .toArray();
 
     // Get total responses given
-    const totalResponsesGiven = await responsesCollection.countDocuments({ userId });
+    const totalResponsesGiven = await responsesCollection.countDocuments({
+      userId,
+    });
 
     // Get verified donations count
     const verifiedDonations = await donationsCollection.countDocuments({
       userId,
-      verified: true
+      verified: true,
     });
 
     // Get total donations count
@@ -410,9 +385,9 @@ export async function getUserAnalytics(
     // Process the results
     const analytics = analyticsResult[0];
     if (!analytics) {
-      throw new Error('Failed to fetch analytics');
+      throw new Error("Failed to fetch analytics");
     }
-    
+
     // Calculate request status breakdown
     const requestsByStatus: Record<string, number> = {};
     analytics.requestsCreated.forEach((item: any) => {
@@ -427,16 +402,18 @@ export async function getUserAnalytics(
 
     // Calculate fulfillment rate
     const totalRequestsCount = analytics.totalRequests[0]?.total || 0;
-    const fulfilledCount = requestsByStatus['fulfilled'] || 0;
-    const fulfillmentRate = totalRequestsCount > 0
-      ? Math.round((fulfilledCount / totalRequestsCount) * 100)
-      : 0;
+    const fulfilledCount = requestsByStatus["fulfilled"] || 0;
+    const fulfillmentRate =
+      totalRequestsCount > 0
+        ? Math.round((fulfilledCount / totalRequestsCount) * 100)
+        : 0;
 
     // Calculate success rate for responses
-    const completedResponses = responsesByStatus['completed'] || 0;
-    const responseSuccessRate = totalResponsesGiven > 0
-      ? Math.round((completedResponses / totalResponsesGiven) * 100)
-      : 0;
+    const completedResponses = responsesByStatus["completed"] || 0;
+    const responseSuccessRate =
+      totalResponsesGiven > 0
+        ? Math.round((completedResponses / totalResponsesGiven) * 100)
+        : 0;
 
     const responsesReceivedCount = analytics.responsesReceived[0]?.total || 0;
 
@@ -466,8 +443,8 @@ export async function getUserAnalytics(
         requestsFulfilled: fulfilledCount,
         responsesGiven: totalResponsesGiven,
         donationsCompleted: completedResponses,
-        livesSaved: verifiedDonations
-      }
+        livesSaved: verifiedDonations,
+      },
     });
   } catch (error) {
     console.error("Error fetching user analytics:", error);
@@ -479,15 +456,9 @@ export async function getUserAnalytics(
 // Get User Response History (GET /api/users/me/responses)
 // ============================================================================
 
-/**
- * Get authenticated user's response history (inferred from plan §0.E)
- * - Returns paginated list of user's responses to blood requests
- * - Includes parent request summary for context
- * - Auth required
- */
 export async function getUserResponses(
   req: Request<{}, {}, {}, GetResponsesQuery>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const { page, limit } = req.query;

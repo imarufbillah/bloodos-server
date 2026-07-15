@@ -1,27 +1,19 @@
-/**
- * Notification Service (Phase 4a)
- * Handles creation and management of all 8 notification types (Req 9.1-9.13)
- *
- * Notification Types:
- * 1. new_response - Someone responded to your request (9.4)
- * 2. response_status_change - Requester updated your response status (9.5)
- * 3. request_status_change - A request you responded to changed status (9.6)
- * 4. new_matching_request - New request matches your blood/district (9.1-9.3)
- * 5. donation_verified - Admin verified your donation (9.7)
- * 6. request_expiring_soon - Your request expires in 24h (9.8)
- * 7. system_announcement - Admin broadcast (9.10)
- * 8. contact_info_requested - Someone requested your contact info (9.9)
- */
-
 import { ObjectId } from "mongodb";
-import { getNotificationsCollection, getUsersCollection } from "../db/collections.js";
+import {
+  getNotificationsCollection,
+  getUsersCollection,
+} from "../db/collections.js";
 import type {
   Notification,
   CreateNotificationInput,
 } from "../types/models/Notification.js";
 import type { BloodRequest } from "../types/models/BloodRequest.js";
 import type { User } from "../types/models/UserExtension.js";
-import type { NotificationType, BloodGroup, District } from "../types/shared.js";
+import type {
+  NotificationType,
+  BloodGroup,
+  District,
+} from "../types/shared.js";
 import { isBloodTypeCompatible } from "./compatibility.js";
 
 // ============================================================================
@@ -33,7 +25,7 @@ import { isBloodTypeCompatible } from "./compatibility.js";
  * All notifications start as unread with current timestamp (Req 9.13)
  */
 export async function createNotification(
-  input: CreateNotificationInput
+  input: CreateNotificationInput,
 ): Promise<void> {
   try {
     const notification: Notification = {
@@ -60,7 +52,7 @@ export async function createNotification(
  * Create multiple notifications in bulk (for efficiency when notifying many users)
  */
 export async function createBulkNotifications(
-  inputs: CreateNotificationInput[]
+  inputs: CreateNotificationInput[],
 ): Promise<void> {
   if (inputs.length === 0) return;
 
@@ -94,7 +86,7 @@ export async function createBulkNotifications(
  * Returns empty array if no matches found (Req 9.2)
  */
 export async function findEligibleDonorsForRequest(
-  request: BloodRequest
+  request: BloodRequest,
 ): Promise<User[]> {
   try {
     const usersCollection = getUsersCollection();
@@ -135,13 +127,13 @@ export async function findEligibleDonorsForRequest(
 
     // Filter out the requester themselves
     const filtered = eligibleDonors.filter(
-      (donor) => !donor._id.equals(request.userId)
+      (donor) => !donor._id.equals(request.userId),
     );
 
     if (filtered.length === 0) {
       // No eligible donors found - log but don't throw (Req 9.2)
       console.log(
-        `No eligible donors found for request ${request._id} (${request.bloodGroup} in ${request.district})`
+        `No eligible donors found for request ${request._id} (${request.bloodGroup} in ${request.district})`,
       );
     }
 
@@ -165,7 +157,7 @@ export async function notifyNewResponse(
   requestOwnerId: ObjectId,
   donorId: ObjectId,
   donorName: string,
-  requestId: ObjectId
+  requestId: ObjectId,
 ): Promise<void> {
   await createNotification({
     userId: requestOwnerId,
@@ -185,7 +177,7 @@ export async function notifyResponseStatusChange(
   donorId: ObjectId,
   newStatus: "accepted" | "declined",
   requestId: ObjectId,
-  patientName: string
+  patientName: string,
 ): Promise<void> {
   const statusText = newStatus === "accepted" ? "accepted" : "declined";
   const title =
@@ -209,7 +201,7 @@ export async function notifyRequestStatusChange(
   donorIds: ObjectId[],
   newStatus: string,
   requestId: ObjectId,
-  patientName: string
+  patientName: string,
 ): Promise<void> {
   const statusMessages: Record<string, { title: string; message: string }> = {
     fulfilled: {
@@ -253,7 +245,7 @@ export async function notifyRequestStatusChange(
  * Notifies all eligible donors when a new request is created
  */
 export async function notifyNewMatchingRequest(
-  request: BloodRequest
+  request: BloodRequest,
 ): Promise<void> {
   // Find all eligible donors
   const eligibleDonors = await findEligibleDonorsForRequest(request);
@@ -283,7 +275,7 @@ export async function notifyNewMatchingRequest(
 export async function notifyDonationVerified(
   donorId: ObjectId,
   donationId: ObjectId,
-  donationDate: Date
+  donationDate: Date,
 ): Promise<void> {
   await createNotification({
     userId: donorId,
@@ -303,7 +295,7 @@ export async function notifyRequestExpiringSoon(
   requestOwnerId: ObjectId,
   requestId: ObjectId,
   patientName: string,
-  expiryDate: Date
+  expiryDate: Date,
 ): Promise<void> {
   await createNotification({
     userId: requestOwnerId,
@@ -325,7 +317,7 @@ export async function notifySystemAnnouncement(
     bloodGroup?: BloodGroup;
     district?: District;
     isDonor?: boolean;
-  }
+  },
 ): Promise<void> {
   const usersCollection = getUsersCollection();
 
@@ -364,7 +356,7 @@ export async function notifyContactInfoRequested(
   donorId: ObjectId,
   requestorId: ObjectId,
   requestorName: string,
-  requestId?: ObjectId
+  requestId?: ObjectId,
 ): Promise<void> {
   const message = requestId
     ? `${requestorName} has requested your contact information regarding a blood request.`
@@ -394,7 +386,7 @@ export async function getUserNotifications(
     page?: number;
     limit?: number;
     unreadOnly?: boolean;
-  } = {}
+  } = {},
 ): Promise<{
   notifications: Notification[];
   total: number;
@@ -432,11 +424,11 @@ export async function getUserNotifications(
  * Mark a notification as read
  */
 export async function markNotificationAsRead(
-  notificationId: ObjectId
+  notificationId: ObjectId,
 ): Promise<boolean> {
   const result = await getNotificationsCollection().updateOne(
     { _id: notificationId },
-    { $set: { isRead: true } }
+    { $set: { isRead: true } },
   );
 
   return result.modifiedCount > 0;
@@ -446,11 +438,11 @@ export async function markNotificationAsRead(
  * Mark all notifications for a user as read
  */
 export async function markAllNotificationsAsRead(
-  userId: ObjectId
+  userId: ObjectId,
 ): Promise<number> {
   const result = await getNotificationsCollection().updateMany(
     { userId, isRead: false },
-    { $set: { isRead: true } }
+    { $set: { isRead: true } },
   );
 
   return result.modifiedCount;
@@ -460,7 +452,7 @@ export async function markAllNotificationsAsRead(
  * Delete a notification
  */
 export async function deleteNotification(
-  notificationId: ObjectId
+  notificationId: ObjectId,
 ): Promise<boolean> {
   const result = await getNotificationsCollection().deleteOne({
     _id: notificationId,
@@ -473,7 +465,7 @@ export async function deleteNotification(
  * Get unread notification count for a user
  */
 export async function getUnreadNotificationCount(
-  userId: ObjectId
+  userId: ObjectId,
 ): Promise<number> {
   return await getNotificationsCollection().countDocuments({
     userId,
@@ -510,7 +502,7 @@ export async function notifyExpiringRequests(): Promise<void> {
     .toArray();
 
   console.log(
-    `Found ${expiringRequests.length} requests expiring in the next 24 hours`
+    `Found ${expiringRequests.length} requests expiring in the next 24 hours`,
   );
 
   // Notify each request owner
@@ -520,13 +512,10 @@ export async function notifyExpiringRequests(): Promise<void> {
         request.userId,
         request._id,
         request.patientName,
-        request.neededByDate
+        request.neededByDate,
       );
     } catch (error) {
-      console.error(
-        `Failed to notify expiring request ${request._id}:`,
-        error
-      );
+      console.error(`Failed to notify expiring request ${request._id}:`, error);
       // Continue with other notifications even if one fails
     }
   }

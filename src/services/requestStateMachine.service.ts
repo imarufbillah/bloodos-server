@@ -67,7 +67,7 @@ export class RequestStateMachineService {
    */
   private isAuthorized(
     request: BloodRequest,
-    actor: StateTransitionActor
+    actor: StateTransitionActor,
   ): boolean {
     // Admin can do anything
     if (actor.role === "admin") {
@@ -84,7 +84,7 @@ export class RequestStateMachineService {
   private isValidTransition(
     currentStatus: RequestStatus,
     targetStatus: RequestStatus,
-    actor: StateTransitionActor
+    actor: StateTransitionActor,
   ): boolean {
     // Special case: admin can revive cancelled requests (Req 3.9)
     if (
@@ -105,7 +105,7 @@ export class RequestStateMachineService {
   private getTransitionErrorMessage(
     currentStatus: RequestStatus,
     targetStatus: RequestStatus,
-    actor: StateTransitionActor
+    actor: StateTransitionActor,
   ): string {
     // Terminal state messages
     if (currentStatus === RequestStatusEnum.FULFILLED) {
@@ -149,7 +149,7 @@ export class RequestStateMachineService {
   public transition(
     request: BloodRequest,
     targetStatus: RequestStatus,
-    actor: StateTransitionActor
+    actor: StateTransitionActor,
   ): StateTransitionResult {
     const currentStatus = request.status;
 
@@ -172,7 +172,7 @@ export class RequestStateMachineService {
             currentStatus,
             targetStatus,
             actorId: actor.id.toString(),
-          }
+          },
         ),
       };
     }
@@ -187,7 +187,7 @@ export class RequestStateMachineService {
             requestId: request._id.toString(),
             currentStatus,
             targetStatus,
-          }
+          },
         ),
       };
     }
@@ -236,7 +236,7 @@ export class RequestStateMachineService {
    */
   public checkAutoExpiration(
     request: BloodRequest,
-    currentDate: Date = new Date()
+    currentDate: Date = new Date(),
   ): {
     shouldExpire: boolean;
     newStatus?: RequestStatus;
@@ -270,7 +270,7 @@ export class RequestStateMachineService {
    */
   public getValidTransitions(
     currentStatus: RequestStatus,
-    actor: StateTransitionActor
+    actor: StateTransitionActor,
   ): RequestStatus[] {
     // Admin can revive cancelled requests
     if (

@@ -22,7 +22,7 @@ export const phoneSchema = z
   .string()
   .regex(
     BANGLADESH_PHONE_REGEX,
-    "Phone must be 11 digits starting with 01 (e.g., 01712345678)"
+    "Phone must be 11 digits starting with 01 (e.g., 01712345678)",
   );
 
 // ============================================================================
@@ -86,7 +86,7 @@ export const createBloodRequestSchema = z.object({
         },
         {
           message: "Needed by date cannot be in the past",
-        }
+        },
       ),
 
     // Req 7.1 - Bangladesh phone format
@@ -167,7 +167,7 @@ export const updateBloodRequestSchema = z.object({
         },
         {
           message: "Needed by date cannot be in the past",
-        }
+        },
       )
       .optional(),
 
@@ -251,11 +251,7 @@ export const listRequestsQuerySchema = z.object({
       .optional()
       .transform((val) => (val ? parseInt(val, 10) : 20))
       .pipe(
-        z
-          .number()
-          .int()
-          .min(1)
-          .max(100, "Limit cannot exceed 100") // Req 7.9
+        z.number().int().min(1).max(100, "Limit cannot exceed 100"), // Req 7.9
       )
       .catch(20),
   }),

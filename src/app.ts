@@ -23,7 +23,7 @@ const __dirname = path.dirname(__filename);
 
 /**
  * Create and configure Express application
- * 
+ *
  * @returns Configured Express application instance
  */
 export const createApp = (): Application => {
@@ -38,7 +38,7 @@ export const createApp = (): Application => {
     cors({
       origin: config.cors.origin,
       credentials: true,
-    })
+    }),
   );
 
   // Upload Routes (avatar) — MUST be before body parsers so multer handles multipart

@@ -46,7 +46,12 @@ router.get("/me", requireAuth, CacheStrategies.userSpecific(), getCurrentUser);
  * - Returns requests, responses, donations statistics with aggregation
  * - Cached per user for 1 minute
  */
-router.get("/me/analytics", requireAuth, CacheStrategies.userSpecific(), getUserAnalytics);
+router.get(
+  "/me/analytics",
+  requireAuth,
+  CacheStrategies.userSpecific(),
+  getUserAnalytics,
+);
 
 /**
  * PATCH /api/users/me
@@ -55,7 +60,12 @@ router.get("/me/analytics", requireAuth, CacheStrategies.userSpecific(), getUser
  * - Only updates whitelisted fields
  * - NEVER allows updating role (enforced by validator)
  */
-router.patch("/me", requireAuth, validate(updateProfileSchema), updateUserProfile);
+router.patch(
+  "/me",
+  requireAuth,
+  validate(updateProfileSchema),
+  updateUserProfile,
+);
 
 // ============================================================================
 // Donation History Routes
@@ -75,7 +85,7 @@ router.get(
   requireAuth,
   CacheStrategies.userSpecific(),
   validate(getDonationsQuerySchema),
-  getUserDonations as any
+  getUserDonations as any,
 );
 
 // ============================================================================
@@ -95,7 +105,7 @@ router.get(
   requireAuth,
   CacheStrategies.userSpecific(),
   validate(getResponsesQuerySchema),
-  getUserResponses as any
+  getUserResponses as any,
 );
 
 // ============================================================================

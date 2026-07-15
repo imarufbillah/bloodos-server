@@ -1,12 +1,9 @@
-/**
- * Blood Requests Controller (Phase 5a + 5b)
- * Implements CRUD + status transitions + respond/responses workflow + related requests
- * Requirements: 20.5-20.9, 20.16-20.19, 7.1-7.12, 3.1-3.9, 5's table rows, 4.1-4.4, 6.1-6.11, 14.1-14.6
- */
-
 import type { Request, Response } from "express";
 import { ObjectId } from "mongodb";
-import { getBloodRequestsCollection, getResponsesCollection } from "../db/collections.js";
+import {
+  getBloodRequestsCollection,
+  getResponsesCollection,
+} from "../db/collections.js";
 import type { BloodRequest } from "../types/models/BloodRequest.js";
 import type { User } from "../types/models/UserExtension.js";
 import {
@@ -16,8 +13,14 @@ import {
   HTTP_STATUS,
 } from "../middleware/error.middleware.js";
 import { requestStateMachine } from "../services/requestStateMachine.service.js";
-import { logAdminAction, extractChangedFields } from "../services/adminActionLog.service.js";
-import { notifyNewMatchingRequest, notifyRequestStatusChange } from "../services/notification.service.js";
+import {
+  logAdminAction,
+  extractChangedFields,
+} from "../services/adminActionLog.service.js";
+import {
+  notifyNewMatchingRequest,
+  notifyRequestStatusChange,
+} from "../services/notification.service.js";
 import { maskPhone, shouldMaskPhone } from "../utils/maskPhone.js";
 import { buildPaginatedResponse, calculateSkip } from "../utils/pagination.js";
 import { CacheService, CacheKeys } from "../services/cache.service.js";
@@ -32,8 +35,14 @@ import type {
   UpdateResponseStatusInput,
 } from "../validators/response.validator.js";
 import { RequestStatus, Urgency, ResponseStatus } from "../types/shared.js";
-import { evaluateEligibility, getIneligibilityMessage } from "../services/eligibility.service.js";
-import { notifyNewResponse, notifyResponseStatusChange } from "../services/notification.service.js";
+import {
+  evaluateEligibility,
+  getIneligibilityMessage,
+} from "../services/eligibility.service.js";
+import {
+  notifyNewResponse,
+  notifyResponseStatusChange,
+} from "../services/notification.service.js";
 import type { Response as DonorResponse } from "../types/models/Response.js";
 import type { BloodGroup } from "../types/shared.js";
 
@@ -48,16 +57,9 @@ declare module "express" {
 // Create Blood Request (POST /api/requests)
 // ============================================================================
 
-/**
- * Create a new blood request (Req 20.5-20.8)
- * - Sets userId from authenticated session
- * - Sets status to "open" automatically
- * - Sets createdAt and updatedAt timestamps
- * - Notifies eligible donors
- */
 export async function createBloodRequest(
   req: Request<{}, {}, CreateBloodRequestInput>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const body = req.body;
@@ -99,9 +101,9 @@ export async function createBloodRequest(
 
     // Invalidate relevant caches
     await CacheService.invalidateMultiple([
-      CacheKeys.endpointPattern('/api/requests'),
-      CacheKeys.endpointPattern('/api/admin/stats'),
-      CacheKeys.endpointPattern('/api/users/me/analytics'),
+      CacheKeys.endpointPattern("/api/requests"),
+      CacheKeys.endpointPattern("/api/admin/stats"),
+      CacheKeys.endpointPattern("/api/users/me/analytics"),
     ]);
 
     res.status(HTTP_STATUS.CREATED).json({
@@ -131,17 +133,9 @@ export async function createBloodRequest(
 // List Blood Requests (GET /api/requests)
 // ============================================================================
 
-/**
- * List blood requests with filters, search, sort, and pagination (Req 20.16, 7.11, 7.8-7.9)
- * - Public endpoint (no auth required)
- * - Supports filtering by bloodGroup, district, urgency, status
- * - Supports search across patientName, hospitalName, hospitalAddress, additionalNotes (Req 7.11)
- * - Returns paginated response (Req 12.1)
- * - Contact info is masked for non-owners (Req 4.1-4.4)
- */
 export async function listBloodRequests(
   req: Request<{}, {}, {}, ListRequestsQuery>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser;
   const {
@@ -203,7 +197,7 @@ export async function listBloodRequests(
       urgent: 2,
       moderate: 3,
     };
-    
+
     // This requires aggregation for complex sorting
     // For now, we'll do a simpler approach with post-fetch sorting
     // Or we can use aggregation pipeline
@@ -219,60 +213,58 @@ export async function listBloodRequests(
     const pipeline: any[] = [
       // Stage 1: Match filters
       { $match: filter },
-      
+
       // Stage 2: Lookup responses and count them
       {
         $lookup: {
-          from: 'responses',
-          localField: '_id',
-          foreignField: 'requestId',
-          as: 'responses'
-        }
+          from: "responses",
+          localField: "_id",
+          foreignField: "requestId",
+          as: "responses",
+        },
       },
-      
+
       // Stage 3: Add response count field
       {
         $addFields: {
-          responseCount: { $size: '$responses' }
-        }
+          responseCount: { $size: "$responses" },
+        },
       },
-      
+
       // Stage 4: Remove the responses array (we only need the count)
       {
         $project: {
-          responses: 0
-        }
+          responses: 0,
+        },
       },
-      
+
       // Stage 5: Sort
       { $sort: sortOrder },
-      
+
       // Stage 6: Facet for pagination and total count
       {
         $facet: {
-          data: [
-            { $skip: skip },
-            { $limit: limit }
-          ],
-          totalCount: [
-            { $count: 'count' }
-          ]
-        }
-      }
+          data: [{ $skip: skip }, { $limit: limit }],
+          totalCount: [{ $count: "count" }],
+        },
+      },
     ];
 
     const [result] = await collection.aggregate(pipeline).toArray();
     if (!result) {
-      throw new Error('Failed to fetch requests');
+      throw new Error("Failed to fetch requests");
     }
-    
+
     const requests = result.data || [];
     const totalCount = result.totalCount[0]?.count || 0;
 
     // Check if auto-expiration should occur for any requests (Req 3.5)
     const now = new Date();
     const requestsWithExpiration = requests.map((request: any) => {
-      const expirationCheck = requestStateMachine.checkAutoExpiration(request, now);
+      const expirationCheck = requestStateMachine.checkAutoExpiration(
+        request,
+        now,
+      );
       if (expirationCheck.shouldExpire) {
         // Note: Actual expiration update would happen in a background job or on-demand
         // For now, we just flag it
@@ -283,12 +275,13 @@ export async function listBloodRequests(
 
     // Mask contact info for non-owners (Req 4.1-4.4)
     const maskedRequests = requestsWithExpiration.map((request: any) => {
-      const isOwner = sessionUser && request.userId.toString() === sessionUser.id;
+      const isOwner =
+        sessionUser && request.userId.toString() === sessionUser.id;
       const isAdmin = sessionUser?.role === "admin";
       const shouldMask = shouldMaskPhone(
         request.userId.toString(),
         sessionUser?.id,
-        isAdmin
+        isAdmin,
       );
 
       return {
@@ -303,7 +296,9 @@ export async function listBloodRequests(
         urgency: request.urgency,
         status: request.status,
         neededByDate: request.neededByDate.toISOString(),
-        contactPhone: shouldMask ? maskPhone(request.contactPhone) : request.contactPhone,
+        contactPhone: shouldMask
+          ? maskPhone(request.contactPhone)
+          : request.contactPhone,
         additionalNotes: request.additionalNotes,
         responseCount: request.responseCount || 0,
         createdAt: request.createdAt.toISOString(),
@@ -316,7 +311,7 @@ export async function listBloodRequests(
       maskedRequests,
       page,
       limit,
-      totalCount
+      totalCount,
     );
 
     res.status(HTTP_STATUS.OK).json(paginatedResponse);
@@ -330,14 +325,9 @@ export async function listBloodRequests(
 // Get Single Blood Request (GET /api/requests/:id)
 // ============================================================================
 
-/**
- * Get a single blood request by ID (Req 20.17)
- * - Public endpoint
- * - Contact info masked for non-owners (Req 4.1-4.4)
- */
 export async function getBloodRequestById(
   req: Request<{ id: string }>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser;
   const { id } = req.params;
@@ -366,7 +356,7 @@ export async function getBloodRequestById(
             status: expirationCheck.newStatus!,
             updatedAt: new Date(),
           },
-        }
+        },
       );
       request.status = expirationCheck.newStatus!;
     }
@@ -376,7 +366,7 @@ export async function getBloodRequestById(
     const shouldMask = shouldMaskPhone(
       request.userId.toString(),
       sessionUser?.id,
-      isAdmin
+      isAdmin,
     );
 
     const response = {
@@ -391,7 +381,9 @@ export async function getBloodRequestById(
       urgency: request.urgency,
       status: request.status,
       neededByDate: request.neededByDate.toISOString(),
-      contactPhone: shouldMask ? maskPhone(request.contactPhone) : request.contactPhone,
+      contactPhone: shouldMask
+        ? maskPhone(request.contactPhone)
+        : request.contactPhone,
       additionalNotes: request.additionalNotes,
       createdAt: request.createdAt.toISOString(),
       updatedAt: request.updatedAt.toISOString(),
@@ -415,7 +407,7 @@ export async function getBloodRequestById(
  */
 export async function getMyBloodRequests(
   req: Request<{}, {}, {}, { page?: string; limit?: string }>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const page = parseInt(req.query.page || "1", 10);
@@ -427,7 +419,12 @@ export async function getMyBloodRequests(
     const skip = calculateSkip(page, limit);
 
     const [requests, totalCount] = await Promise.all([
-      collection.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
+      collection
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
       collection.countDocuments(filter),
     ]);
 
@@ -453,7 +450,7 @@ export async function getMyBloodRequests(
       formattedRequests,
       page,
       limit,
-      totalCount
+      totalCount,
     );
 
     res.status(HTTP_STATUS.OK).json(paginatedResponse);
@@ -476,7 +473,7 @@ export async function getMyBloodRequests(
  */
 export async function updateBloodRequestStatus(
   req: Request<{ id: string }, {}, UpdateRequestStatusInput>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const { id } = req.params;
@@ -502,7 +499,7 @@ export async function updateBloodRequestStatus(
       {
         id: new ObjectId(sessionUser.id),
         role: sessionUser.role,
-      }
+      },
     );
 
     if (!transitionResult.allowed) {
@@ -520,7 +517,7 @@ export async function updateBloodRequestStatus(
           status: newStatus,
           updatedAt: new Date(),
         },
-      }
+      },
     );
 
     if (updateResult.modifiedCount === 0) {
@@ -557,7 +554,7 @@ export async function updateBloodRequestStatus(
           donorIds,
           newStatus,
           request._id,
-          request.patientName
+          request.patientName,
         ).catch((error) => {
           console.error("Failed to notify request status change:", error);
         });
@@ -566,10 +563,10 @@ export async function updateBloodRequestStatus(
 
     // Invalidate relevant caches
     await CacheService.invalidateMultiple([
-      CacheKeys.endpointPattern('/api/requests'),
-      CacheKeys.resource('request', id),
-      CacheKeys.endpointPattern('/api/admin/stats'),
-      CacheKeys.endpointPattern('/api/users/me/analytics'),
+      CacheKeys.endpointPattern("/api/requests"),
+      CacheKeys.resource("request", id),
+      CacheKeys.endpointPattern("/api/admin/stats"),
+      CacheKeys.endpointPattern("/api/users/me/analytics"),
     ]);
 
     res.status(HTTP_STATUS.OK).json({
@@ -595,7 +592,7 @@ export async function updateBloodRequestStatus(
  */
 export async function deleteBloodRequest(
   req: Request<{ id: string }>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const { id } = req.params;
@@ -620,7 +617,7 @@ export async function deleteBloodRequest(
     if (!isOwner && !isAdmin) {
       throw createForbiddenError(
         "You do not have permission to delete this request",
-        { requestId: id }
+        { requestId: id },
       );
     }
 
@@ -651,10 +648,10 @@ export async function deleteBloodRequest(
 
     // Invalidate relevant caches
     await CacheService.invalidateMultiple([
-      CacheKeys.endpointPattern('/api/requests'),
-      CacheKeys.resource('request', id),
-      CacheKeys.endpointPattern('/api/admin/stats'),
-      CacheKeys.endpointPattern('/api/users/me/analytics'),
+      CacheKeys.endpointPattern("/api/requests"),
+      CacheKeys.resource("request", id),
+      CacheKeys.endpointPattern("/api/admin/stats"),
+      CacheKeys.endpointPattern("/api/users/me/analytics"),
     ]);
 
     res.status(HTTP_STATUS.OK).json({
@@ -666,7 +663,6 @@ export async function deleteBloodRequest(
     throw error;
   }
 }
-
 
 // ============================================================================
 // Phase 5b: Respond/Responses Workflow + Related Requests
@@ -686,7 +682,7 @@ export async function deleteBloodRequest(
  */
 export async function respondToBloodRequest(
   req: Request<{ id: string }, {}, CreateResponseInput>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const { id: requestId } = req.params;
@@ -713,7 +709,7 @@ export async function respondToBloodRequest(
     // Donor cannot respond to their own request
     if (request.userId.toString() === sessionUser.id) {
       throw createValidationError(
-        "You cannot respond to your own blood request"
+        "You cannot respond to your own blood request",
       );
     }
 
@@ -721,7 +717,7 @@ export async function respondToBloodRequest(
     if (!sessionUser.isDonor) {
       throw createForbiddenError(
         "Only registered donors can respond to blood requests. Please update your profile to register as a donor.",
-        { userId: sessionUser.id }
+        { userId: sessionUser.id },
       );
     }
 
@@ -731,7 +727,7 @@ export async function respondToBloodRequest(
       request.status !== RequestStatus.IN_PROGRESS
     ) {
       throw createValidationError(
-        `Cannot respond to a ${request.status} request. Only open or in-progress requests accept responses.`
+        `Cannot respond to a ${request.status} request. Only open or in-progress requests accept responses.`,
       );
     }
 
@@ -743,7 +739,7 @@ export async function respondToBloodRequest(
 
     if (existingResponse) {
       throw createValidationError(
-        "You have already responded to this blood request"
+        "You have already responded to this blood request",
       );
     }
 
@@ -754,7 +750,7 @@ export async function respondToBloodRequest(
 
     if (responseCount >= 50) {
       throw createValidationError(
-        "This request has reached the maximum number of responses (50). No more responses can be accepted."
+        "This request has reached the maximum number of responses (50). No more responses can be accepted.",
       );
     }
 
@@ -773,7 +769,7 @@ export async function respondToBloodRequest(
     if (!eligibilityResult.eligible) {
       const errorMessage = getIneligibilityMessage(
         eligibilityResult.reason!,
-        eligibilityResult.daysRemaining
+        eligibilityResult.daysRemaining,
       );
       throw createValidationError(errorMessage, {
         reason: eligibilityResult.reason,
@@ -799,7 +795,10 @@ export async function respondToBloodRequest(
     const autoTransitionResult =
       requestStateMachine.autoTransitionOnFirstResponse(request);
 
-    if (autoTransitionResult.shouldTransition && autoTransitionResult.newStatus) {
+    if (
+      autoTransitionResult.shouldTransition &&
+      autoTransitionResult.newStatus
+    ) {
       await requestsCollection.updateOne(
         { _id: request._id },
         {
@@ -807,7 +806,7 @@ export async function respondToBloodRequest(
             status: autoTransitionResult.newStatus,
             updatedAt: now,
           },
-        }
+        },
       );
     }
 
@@ -816,16 +815,16 @@ export async function respondToBloodRequest(
       request.userId,
       new ObjectId(sessionUser.id),
       sessionUser.name || "A donor",
-      request._id
+      request._id,
     ).catch((error) => {
       console.error("Failed to notify request owner:", error);
     });
 
     // Invalidate relevant caches
     await CacheService.invalidateMultiple([
-      CacheKeys.endpointPattern('/api/requests'),
-      CacheKeys.resource('request', requestId),
-      CacheKeys.endpointPattern('/api/users/me/responses'),
+      CacheKeys.endpointPattern("/api/requests"),
+      CacheKeys.resource("request", requestId),
+      CacheKeys.endpointPattern("/api/users/me/responses"),
     ]);
 
     res.status(HTTP_STATUS.CREATED).json({
@@ -859,7 +858,7 @@ export async function updateResponseStatus(
     {},
     UpdateResponseStatusInput
   >,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const { id: requestId, responseId } = req.params;
@@ -893,7 +892,7 @@ export async function updateResponseStatus(
     if (!isOwner && !isAdmin) {
       throw createForbiddenError(
         "Only the request owner can update response status",
-        { requestId, responseId }
+        { requestId, responseId },
       );
     }
 
@@ -916,7 +915,7 @@ export async function updateResponseStatus(
           ...(message && { message }),
           updatedAt: new Date(),
         },
-      }
+      },
     );
 
     if (updateResult.modifiedCount === 0) {
@@ -929,7 +928,7 @@ export async function updateResponseStatus(
         response.userId,
         newStatus,
         request._id,
-        request.patientName
+        request.patientName,
       ).catch((error) => {
         console.error("Failed to notify response status change:", error);
       });
@@ -946,7 +945,7 @@ export async function updateResponseStatus(
   } catch (error) {
     console.error(
       `Error updating response status ${responseId} for request ${requestId}:`,
-      error
+      error,
     );
     throw error;
   }
@@ -963,7 +962,7 @@ export async function updateResponseStatus(
  */
 export async function retractResponse(
   req: Request<{ id: string; responseId: string }>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const { id: requestId, responseId } = req.params;
@@ -991,16 +990,15 @@ export async function retractResponse(
 
     // Check authorization - donor can only retract their own response
     if (response.userId.toString() !== sessionUser.id) {
-      throw createForbiddenError(
-        "You can only retract your own response",
-        { responseId }
-      );
+      throw createForbiddenError("You can only retract your own response", {
+        responseId,
+      });
     }
 
     // Can only retract if status is "offered" (Req 6.8-6.9)
     if (response.status !== ResponseStatus.OFFERED) {
       throw createValidationError(
-        `Cannot retract a ${response.status} response. Only "offered" responses can be retracted.`
+        `Cannot retract a ${response.status} response. Only "offered" responses can be retracted.`,
       );
     }
 
@@ -1020,7 +1018,7 @@ export async function retractResponse(
   } catch (error) {
     console.error(
       `Error retracting response ${responseId} for request ${requestId}:`,
-      error
+      error,
     );
     throw error;
   }
@@ -1037,7 +1035,7 @@ export async function retractResponse(
  */
 export async function getRequestResponses(
   req: Request<{ id: string }>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser!;
   const { id: requestId } = req.params;
@@ -1067,10 +1065,9 @@ export async function getRequestResponses(
     const isAdmin = sessionUser.role === "admin";
 
     if (!isOwner && !isAdmin) {
-      throw createForbiddenError(
-        "Only the request owner can view responses",
-        { requestId }
-      );
+      throw createForbiddenError("Only the request owner can view responses", {
+        requestId,
+      });
     }
 
     // Get all responses
@@ -1103,7 +1100,7 @@ export async function getRequestResponses(
               }
             : null,
         };
-      })
+      }),
     );
 
     res.status(HTTP_STATUS.OK).json({
@@ -1131,7 +1128,7 @@ export async function getRequestResponses(
  */
 export async function getRelatedRequests(
   req: Request<{ id: string }>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const sessionUser = req.sessionUser;
   const { id: requestId } = req.params;
@@ -1188,12 +1185,13 @@ export async function getRelatedRequests(
 
     // Mask contact info for non-owners (Req 4.1-4.4)
     const masked = limited.map((request) => {
-      const isOwner = sessionUser && request.userId.toString() === sessionUser.id;
+      const isOwner =
+        sessionUser && request.userId.toString() === sessionUser.id;
       const isAdmin = sessionUser?.role === "admin";
       const shouldMask = shouldMaskPhone(
         request.userId.toString(),
         sessionUser?.id,
-        isAdmin
+        isAdmin,
       );
 
       return {
@@ -1208,7 +1206,9 @@ export async function getRelatedRequests(
         urgency: request.urgency,
         status: request.status,
         neededByDate: request.neededByDate.toISOString(),
-        contactPhone: shouldMask ? maskPhone(request.contactPhone) : request.contactPhone,
+        contactPhone: shouldMask
+          ? maskPhone(request.contactPhone)
+          : request.contactPhone,
         additionalNotes: request.additionalNotes,
         createdAt: request.createdAt.toISOString(),
         updatedAt: request.updatedAt.toISOString(),

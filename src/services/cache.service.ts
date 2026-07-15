@@ -1,12 +1,12 @@
 /**
  * Cache Service
- * 
+ *
  * Provides abstraction layer over Redis for caching operations.
  * Handles serialization, TTL management, and pattern-based invalidation.
  * Gracefully degrades if Redis is unavailable.
  */
 
-import redis, { isRedisReady } from '../config/redis.js';
+import redis, { isRedisReady } from "../config/redis.js";
 
 /**
  * Cache Service
@@ -15,7 +15,7 @@ import redis, { isRedisReady } from '../config/redis.js';
 export class CacheService {
   /**
    * Get a value from cache
-   * 
+   *
    * @param key - Cache key
    * @returns Parsed value or null if not found/error
    */
@@ -40,7 +40,7 @@ export class CacheService {
 
   /**
    * Set a value in cache with TTL
-   * 
+   *
    * @param key - Cache key
    * @param value - Value to cache (will be JSON stringified)
    * @param ttl - Time to live in seconds (default: 120)
@@ -62,7 +62,7 @@ export class CacheService {
 
   /**
    * Delete a specific key from cache
-   * 
+   *
    * @param key - Cache key to delete
    */
   static async delete(key: string): Promise<void> {
@@ -81,7 +81,7 @@ export class CacheService {
   /**
    * Invalidate cache keys matching a pattern
    * Uses SCAN for safe iteration (no KEYS command in production)
-   * 
+   *
    * @param pattern - Pattern to match (e.g., 'cache:GET:/api/requests*')
    */
   static async invalidate(pattern: string): Promise<void> {
@@ -92,25 +92,27 @@ export class CacheService {
 
     try {
       const keys: string[] = [];
-      let cursor = '0';
+      let cursor = "0";
 
       // Use SCAN to find matching keys (safe for production)
       do {
         const [nextCursor, foundKeys] = await redis.scan(
           cursor,
-          'MATCH',
+          "MATCH",
           pattern,
-          'COUNT',
-          100
+          "COUNT",
+          100,
         );
         cursor = nextCursor;
         keys.push(...foundKeys);
-      } while (cursor !== '0');
+      } while (cursor !== "0");
 
       // Delete all found keys
       if (keys.length > 0) {
         await redis.del(...keys);
-        console.log(`🗑️  Invalidated ${keys.length} cache keys matching: ${pattern}`);
+        console.log(
+          `🗑️  Invalidated ${keys.length} cache keys matching: ${pattern}`,
+        );
       }
     } catch (error) {
       console.error(`Cache invalidate error for pattern ${pattern}:`, error);
@@ -119,7 +121,7 @@ export class CacheService {
 
   /**
    * Invalidate multiple cache patterns at once
-   * 
+   *
    * @param patterns - Array of patterns to invalidate
    */
   static async invalidateMultiple(patterns: string[]): Promise<void> {
@@ -130,9 +132,9 @@ export class CacheService {
 
     try {
       // Invalidate all patterns in parallel
-      await Promise.all(patterns.map(pattern => this.invalidate(pattern)));
+      await Promise.all(patterns.map((pattern) => this.invalidate(pattern)));
     } catch (error) {
-      console.error('Cache invalidateMultiple error:', error);
+      console.error("Cache invalidateMultiple error:", error);
     }
   }
 
@@ -148,15 +150,15 @@ export class CacheService {
 
     try {
       await redis.flushdb();
-      console.log('🗑️  Cache cleared');
+      console.log("🗑️  Cache cleared");
     } catch (error) {
-      console.error('Cache clear error:', error);
+      console.error("Cache clear error:", error);
     }
   }
 
   /**
    * Check if a key exists in cache
-   * 
+   *
    * @param key - Cache key
    * @returns true if key exists, false otherwise
    */
@@ -177,7 +179,7 @@ export class CacheService {
 
   /**
    * Get remaining TTL for a key
-   * 
+   *
    * @param key - Cache key
    * @returns TTL in seconds, -1 if no expiry, -2 if key doesn't exist
    */
@@ -198,13 +200,13 @@ export class CacheService {
   /**
    * Set multiple key-value pairs at once
    * All keys will have the same TTL
-   * 
+   *
    * @param entries - Array of { key, value } objects
    * @param ttl - Time to live in seconds (default: 120)
    */
   static async setMany(
     entries: Array<{ key: string; value: any }>,
-    ttl: number = 120
+    ttl: number = 120,
   ): Promise<void> {
     // If Redis is not ready, skip
     if (!isRedisReady()) {
@@ -214,7 +216,7 @@ export class CacheService {
     try {
       // Use pipeline for better performance
       const pipeline = redis.pipeline();
-      
+
       entries.forEach(({ key, value }) => {
         const serialized = JSON.stringify(value);
         pipeline.setex(key, ttl, serialized);
@@ -222,28 +224,31 @@ export class CacheService {
 
       await pipeline.exec();
     } catch (error) {
-      console.error('Cache setMany error:', error);
+      console.error("Cache setMany error:", error);
     }
   }
 
   /**
    * Get multiple keys at once
-   * 
+   *
    * @param keys - Array of cache keys
    * @returns Object mapping keys to values (null if not found)
    */
   static async getMany<T>(keys: string[]): Promise<Record<string, T | null>> {
     // If Redis is not ready, return all nulls
     if (!isRedisReady()) {
-      return keys.reduce((acc, key) => {
-        acc[key] = null;
-        return acc;
-      }, {} as Record<string, T | null>);
+      return keys.reduce(
+        (acc, key) => {
+          acc[key] = null;
+          return acc;
+        },
+        {} as Record<string, T | null>,
+      );
     }
 
     try {
       const values = await redis.mget(...keys);
-      
+
       const result: Record<string, T | null> = {};
       keys.forEach((key, index) => {
         const value = values[index];
@@ -252,18 +257,21 @@ export class CacheService {
 
       return result;
     } catch (error) {
-      console.error('Cache getMany error:', error);
-      return keys.reduce((acc, key) => {
-        acc[key] = null;
-        return acc;
-      }, {} as Record<string, T | null>);
+      console.error("Cache getMany error:", error);
+      return keys.reduce(
+        (acc, key) => {
+          acc[key] = null;
+          return acc;
+        },
+        {} as Record<string, T | null>,
+      );
     }
   }
 
   /**
    * Increment a numeric value in cache
    * Creates the key with value 1 if it doesn't exist
-   * 
+   *
    * @param key - Cache key
    * @param amount - Amount to increment by (default: 1)
    * @returns New value after increment
@@ -284,7 +292,7 @@ export class CacheService {
 
   /**
    * Get cache statistics
-   * 
+   *
    * @returns Object with cache stats
    */
   static async getStats(): Promise<{
@@ -294,35 +302,35 @@ export class CacheService {
     usedMemory: string | null;
   }> {
     const connected = isRedisReady();
-    
+
     if (!connected) {
       return {
         connected: false,
-        status: 'disconnected',
+        status: "disconnected",
         keyCount: 0,
         usedMemory: null,
       };
     }
 
     try {
-      const info = await redis.info('stats');
+      const info = await redis.info("stats");
       const dbSize = await redis.dbsize();
-      
+
       // Parse used memory from info string
       const memoryMatch = info.match(/used_memory_human:(.+)/);
       const usedMemory = memoryMatch?.[1]?.trim() || null;
 
       return {
         connected: true,
-        status: 'ready',
+        status: "ready",
         keyCount: dbSize,
         usedMemory,
       };
     } catch (error) {
-      console.error('Cache getStats error:', error);
+      console.error("Cache getStats error:", error);
       return {
         connected: true,
-        status: 'error',
+        status: "error",
         keyCount: 0,
         usedMemory: null,
       };

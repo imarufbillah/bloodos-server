@@ -42,4 +42,6 @@ export const requestContactParamsSchema = z.object({
   }),
 });
 
-export type RequestContactParams = z.infer<typeof requestContactParamsSchema>["params"];
+export type RequestContactParams = z.infer<
+  typeof requestContactParamsSchema
+>["params"];

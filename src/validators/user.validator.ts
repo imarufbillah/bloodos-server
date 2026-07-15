@@ -34,7 +34,7 @@ export const updateProfileSchema = z.object({
         .string()
         .regex(
           /^01[3-9]\d{8}$/,
-          "Phone must be valid Bangladesh format (01XXXXXXXXX)"
+          "Phone must be valid Bangladesh format (01XXXXXXXXX)",
         )
         .optional(),
 

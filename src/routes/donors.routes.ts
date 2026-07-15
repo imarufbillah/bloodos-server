@@ -6,18 +6,21 @@
 import { Router } from "express";
 import { requireAuth, optionalAuth } from "../middleware/auth.middleware.js";
 import { CacheStrategies } from "../middleware/cache.middleware.js";
-import { listDonors, requestContact } from "../controllers/donors.controller.js";
+import {
+  listDonors,
+  requestContact,
+} from "../controllers/donors.controller.js";
 
 const router = Router();
 
 /**
  * GET /api/donors
  * List all registered donors with optional filtering
- * 
+ *
  * Public endpoint (optional auth for future personalization)
  * Query: bloodGroup, district, page, limit
  * Cached for 5 minutes (donor data changes infrequently)
- * 
+ *
  * Requirements:
  * - Req 17.3: Endpoint exists
  * - Req 17.4: Only isDonor:true users returned
@@ -27,17 +30,17 @@ router.get(
   "/",
   optionalAuth, // Public but can use auth for future features
   CacheStrategies.publicList(), // Cache donor list
-  listDonors as any // Type compatibility with Express handler
+  listDonors as any, // Type compatibility with Express handler
 );
 
 /**
  * POST /api/donors/:id/request-contact
  * Request full contact information for a specific donor
- * 
+ *
  * Authentication required
  * Creates audit log entry before revealing info
  * Notifies donor that contact was requested
- * 
+ *
  * Requirements:
  * - Req 4.5: Creates ContactAuditLog entry
  * - Req 4.6: Atomic - audit log must succeed before reveal
@@ -47,7 +50,7 @@ router.get(
 router.post(
   "/:id/request-contact",
   requireAuth, // Must be authenticated
-  requestContact as any // Type compatibility with Express handler
+  requestContact as any, // Type compatibility with Express handler
 );
 
 export default router;

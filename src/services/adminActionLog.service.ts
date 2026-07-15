@@ -6,26 +6,6 @@ import type {
 } from "../types/models/index.js";
 import type { AdminActionType } from "../types/shared.js";
 
-/**
- * Admin Action Log Service (Req 10.1-10.10)
- * 
- * Tracks all administrative actions for audit purposes including:
- * - Request modifications/deletions
- * - Donation verifications
- * - User bans/unbans
- * - Role changes
- * - Status force-changes
- * 
- * Each log entry captures:
- * - Admin who performed the action
- * - Action type
- * - Target resource (user/request/donation)
- * - Previous and new state (relevant fields only, not full dumps)
- * - Reason (optional)
- * - IP address
- * - Timestamp
- */
-
 // ============================================================================
 // Types
 // ============================================================================
@@ -46,32 +26,8 @@ export interface LogAdminActionParams {
 // Core Service Function
 // ============================================================================
 
-/**
- * Log an admin action to the audit trail (Req 10.1-10.10)
- * 
- * This function should be called by every admin route that mutates data.
- * It creates an immutable audit record with before/after state capture.
- * 
- * @param params - Admin action parameters
- * @returns Promise<AdminActionLog> - The created log entry
- * @throws Error if the log write fails
- * 
- * @example
- * ```typescript
- * await logAdminAction({
- *   adminId: new ObjectId(sessionUser.id),
- *   action: AdminActionType.VERIFY_DONATION,
- *   targetType: "donation",
- *   targetId: donationId,
- *   previousState: { verified: false },
- *   newState: { verified: true, verifiedBy: adminId, verifiedAt: new Date() },
- *   reason: "Medical certificate provided",
- *   ipAddress: req.ip || "unknown"
- * });
- * ```
- */
 export async function logAdminAction(
-  params: LogAdminActionParams
+  params: LogAdminActionParams,
 ): Promise<AdminActionLog> {
   const {
     adminId,
@@ -139,11 +95,13 @@ export async function logAdminAction(
 /**
  * Sanitize state object by removing internal MongoDB fields and
  * ensuring only relevant changed fields are captured (Req 10.8)
- * 
+ *
  * @param state - State object to sanitize
  * @returns Sanitized state with only relevant fields
  */
-function sanitizeState(state: Record<string, unknown>): Record<string, unknown> {
+function sanitizeState(
+  state: Record<string, unknown>,
+): Record<string, unknown> {
   const sanitized: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(state)) {
@@ -174,14 +132,14 @@ function sanitizeState(state: Record<string, unknown>): Record<string, unknown> 
 /**
  * Extract only the changed fields between two states (Req 10.8)
  * This ensures we only log relevant changes, not the entire document
- * 
+ *
  * @param previous - Previous state
  * @param current - Current state
  * @returns Object containing only previousState and newState with changed fields
  */
 export function extractChangedFields(
   previous: Record<string, unknown>,
-  current: Record<string, unknown>
+  current: Record<string, unknown>,
 ): {
   previousState: Record<string, unknown>;
   newState: Record<string, unknown>;
@@ -214,7 +172,7 @@ export function extractChangedFields(
 /**
  * Simple equality check for common types
  * Handles primitives, Dates, and ObjectIds
- * 
+ *
  * @param a - First value
  * @param b - Second value
  * @returns true if values are equal
@@ -252,17 +210,17 @@ function isEqual(a: unknown, b: unknown): boolean {
 /**
  * Get admin action logs for a specific admin user
  * Useful for admin activity reports
- * 
+ *
  * @param adminId - Admin user ID
  * @param limit - Maximum number of logs to return
  * @returns Array of admin action logs
  */
 export async function getAdminActionsByAdmin(
   adminId: ObjectId,
-  limit: number = 100
+  limit: number = 100,
 ): Promise<AdminActionLog[]> {
   const collection = getAdminActionLogsCollection();
-  
+
   return collection
     .find({ adminId })
     .sort({ timestamp: -1 })
@@ -273,7 +231,7 @@ export async function getAdminActionsByAdmin(
 /**
  * Get admin action logs for a specific target resource
  * Useful for viewing audit history of a specific request/user/donation
- * 
+ *
  * @param targetType - Type of target (user/request/donation)
  * @param targetId - Target resource ID
  * @param limit - Maximum number of logs to return
@@ -282,10 +240,10 @@ export async function getAdminActionsByAdmin(
 export async function getAdminActionsByTarget(
   targetType: "user" | "request" | "donation",
   targetId: ObjectId,
-  limit: number = 100
+  limit: number = 100,
 ): Promise<AdminActionLog[]> {
   const collection = getAdminActionLogsCollection();
-  
+
   return collection
     .find({ targetType, targetId })
     .sort({ timestamp: -1 })
@@ -296,19 +254,14 @@ export async function getAdminActionsByTarget(
 /**
  * Get recent admin actions across the platform
  * Useful for admin dashboard overview
- * 
+ *
  * @param limit - Maximum number of logs to return
  * @returns Array of admin action logs
  */
 export async function getRecentAdminActions(
-  limit: number = 50
+  limit: number = 50,
 ): Promise<AdminActionLog[]> {
   const collection = getAdminActionLogsCollection();
-  
-  return collection
-    .find({})
-    .sort({ timestamp: -1 })
-    .limit(limit)
-    .toArray();
-}
 
+  return collection.find({}).sort({ timestamp: -1 }).limit(limit).toArray();
+}

@@ -36,7 +36,7 @@ export const connectDB = async (): Promise<Db> => {
 
   try {
     console.log("📦 Connecting to MongoDB...");
-    
+
     client = new MongoClient(config.mongodb.uri, {
       maxPoolSize: 10,
       minPoolSize: 2,

@@ -1,7 +1,17 @@
 import { ObjectId } from "mongodb";
 import { connectDB, closeDB } from "../config/db.js";
-import { getUsersCollection, getBloodRequestsCollection, getDonationsCollection } from "../db/collections.js";
-import { BloodGroup, District, UserRole, Urgency, RequestStatus } from "../types/shared.js";
+import {
+  getUsersCollection,
+  getBloodRequestsCollection,
+  getDonationsCollection,
+} from "../db/collections.js";
+import {
+  BloodGroup,
+  District,
+  UserRole,
+  Urgency,
+  RequestStatus,
+} from "../types/shared.js";
 
 /**
  * Seed script for creating demo data (Req 1.11)
@@ -154,7 +164,8 @@ const seedSampleRequests = async (users: any[]) => {
     const requestsCollection = getBloodRequestsCollection();
 
     // Find a non-admin user to create requests
-    const requester = users.find(u => u.email === "demo@bloodos.app") || users[0];
+    const requester =
+      users.find((u) => u.email === "demo@bloodos.app") || users[0];
 
     if (!requester) {
       console.log("  ⚠ No users found to create requests");
@@ -175,7 +186,8 @@ const seedSampleRequests = async (users: any[]) => {
         status: RequestStatus.OPEN,
         neededByDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days from now
         contactPhone: "01712345678",
-        additionalNotes: "Patient scheduled for emergency surgery. Type and cross-match completed.",
+        additionalNotes:
+          "Patient scheduled for emergency surgery. Type and cross-match completed.",
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -238,7 +250,7 @@ const seedSampleDonations = async (users: any[]) => {
     const donationsCollection = getDonationsCollection();
 
     // Find donors
-    const donors = users.filter(u => u.isDonor);
+    const donors = users.filter((u) => u.isDonor);
 
     if (donors.length === 0) {
       console.log("  ⚠ No donors found to create donations");
@@ -254,7 +266,7 @@ const seedSampleDonations = async (users: any[]) => {
         hospitalName: "Dhaka Medical College Hospital",
         district: donors[0].district,
         verified: true,
-        verifiedBy: users.find(u => u.role === UserRole.ADMIN)?._id || null,
+        verifiedBy: users.find((u) => u.role === UserRole.ADMIN)?._id || null,
         verifiedAt: new Date(Date.now() - 99 * 24 * 60 * 60 * 1000),
         createdAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000),
       },

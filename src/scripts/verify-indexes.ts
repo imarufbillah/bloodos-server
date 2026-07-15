@@ -16,7 +16,9 @@ const verifyIndexesScript = async () => {
       console.log("\n✅ All indexes verified successfully");
       process.exit(0);
     } else {
-      console.log("\n⚠ Some indexes may be missing. Run 'npm run init-indexes' to create them.");
+      console.log(
+        "\n⚠ Some indexes may be missing. Run 'npm run init-indexes' to create them.",
+      );
       process.exit(1);
     }
   } catch (error) {

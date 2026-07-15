@@ -16,13 +16,13 @@ const router = Router();
 /**
  * GET /api/notifications
  * List all notifications for the authenticated user
- * 
+ *
  * Authentication required
  * Returns paginated list of user's notifications
  * Sorted by createdAt desc (newest first)
- * 
+ *
  * Query: page, limit
- * 
+ *
  * Requirements:
  * - Req 5: Endpoint authorization table (user can access own notifications)
  * - Req 9.13: Notifications sorted by createdAt, filtered by userId
@@ -30,16 +30,16 @@ const router = Router();
 router.get(
   "/",
   requireAuth, // Must be authenticated to view notifications
-  listNotifications as any // Type compatibility with Express handler
+  listNotifications as any, // Type compatibility with Express handler
 );
 
 /**
  * PATCH /api/notifications/:id/read
  * Mark a specific notification as read
- * 
+ *
  * Authentication required
  * Ownership enforced: notification.userId must match sessionUser.id
- * 
+ *
  * Requirements:
  * - Req 5: Endpoint authorization (user can only mark own notifications)
  * - Sets isRead: true on the notification
@@ -47,25 +47,25 @@ router.get(
 router.patch(
   "/:id/read",
   requireAuth, // Must be authenticated
-  markNotificationRead as any // Type compatibility with Express handler
+  markNotificationRead as any, // Type compatibility with Express handler
 );
 
 /**
  * PATCH /api/notifications/read-all
  * Mark all user's notifications as read
- * 
+ *
  * Authentication required
  * Bulk update all unread notifications for the authenticated user
- * 
+ *
  * Returns count of notifications updated
- * 
+ *
  * NOTE: This route must come AFTER /:id/read to avoid route collision
  * (otherwise "read-all" would be treated as an id)
  */
 router.patch(
   "/read-all",
   requireAuth, // Must be authenticated
-  markAllNotificationsRead as any // Type compatibility with Express handler
+  markAllNotificationsRead as any, // Type compatibility with Express handler
 );
 
 export default router;

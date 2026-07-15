@@ -1,6 +1,6 @@
 /**
  * Middleware Index
- * 
+ *
  * Central export point for all middleware functions
  */
 

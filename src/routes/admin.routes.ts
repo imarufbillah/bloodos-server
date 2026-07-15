@@ -1,18 +1,3 @@
-/**
- * Admin Routes (Req 18, 10)
- * 
- * All routes in this file require authentication + admin role
- * 
- * Endpoints:
- * - GET /api/admin/stats - Dashboard statistics (Req 18.3-18.8)
- * - GET /api/admin/requests - Moderation table (Req 18.9)
- * - PATCH /api/admin/requests/:id/approve - Approve request (inferred)
- * - PATCH /api/admin/requests/:id/reject - Reject request (inferred)
- * - PATCH /api/admin/users/:id/ban - Ban user (Req 10.5, Plan §5f)
- * - PATCH /api/admin/users/:id/unban - Unban user (Req 10.6, Plan §5f)
- * - PATCH /api/admin/users/:id/role - Change user role (Req 1.10, Plan §5f)
- */
-
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { requireAdmin } from "../middleware/role.middleware.js";
@@ -54,7 +39,7 @@ router.use(requireAdmin);
 /**
  * GET /api/admin/stats
  * Get comprehensive dashboard statistics
- * 
+ *
  * Returns:
  * - Total, active, and fulfilled request counts
  * - Total donor count
@@ -62,9 +47,9 @@ router.use(requireAdmin);
  * - Requests by blood group (PieChart data)
  * - Requests by district (BarChart data)
  * - 30-day request trend (LineChart data)
- * 
+ *
  * Cached for 5 minutes (expensive aggregation query)
- * 
+ *
  * @access Admin only
  * @see Req 18.3-18.8
  */
@@ -77,7 +62,7 @@ router.get("/stats", CacheStrategies.adminStats(), getAdminStats);
 /**
  * GET /api/admin/requests
  * Get all requests for moderation table
- * 
+ *
  * Query params:
  * - status: Filter by status
  * - urgency: Filter by urgency
@@ -86,9 +71,9 @@ router.get("/stats", CacheStrategies.adminStats(), getAdminStats);
  * - sort: Sort order (newest|oldest|urgent)
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 20, max: 100)
- * 
+ *
  * Returns: PaginatedResponse<BloodRequest> with unmasked contact info
- * 
+ *
  * @access Admin only
  * @see Req 18.9
  */
@@ -97,7 +82,7 @@ router.get("/requests", getAdminRequests);
 /**
  * GET /api/admin/users
  * Get all users for user management table
- * 
+ *
  * Query params:
  * - role: Filter by role (user|admin)
  * - isDonor: Filter by donor status (true|false)
@@ -105,9 +90,9 @@ router.get("/requests", getAdminRequests);
  * - district: Filter by district
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 20, max: 100)
- * 
+ *
  * Returns: PaginatedResponse<User>
- * 
+ *
  * @access Admin only
  * @see Req 5f, Plan §0.B
  */
@@ -116,32 +101,40 @@ router.get("/users", getAdminUsers);
 /**
  * PATCH /api/admin/requests/:id/approve
  * Approve a blood request
- * 
+ *
  * Body:
  * - reason: Optional approval reason
- * 
+ *
  * Re-opens cancelled requests or marks as approved
  * Logs action to Admin_Action_Log
- * 
+ *
  * @access Admin only
  * @see Req 10.2
  */
-router.patch("/requests/:id/approve", validate(approveRequestSchema), approveRequest);
+router.patch(
+  "/requests/:id/approve",
+  validate(approveRequestSchema),
+  approveRequest,
+);
 
 /**
  * PATCH /api/admin/requests/:id/reject
  * Reject a blood request
- * 
+ *
  * Body:
  * - reason: Required rejection reason
- * 
+ *
  * Marks request as cancelled with reason
  * Logs action to Admin_Action_Log
- * 
+ *
  * @access Admin only
  * @see Req 10.3
  */
-router.patch("/requests/:id/reject", validate(rejectRequestSchema), rejectRequest);
+router.patch(
+  "/requests/:id/reject",
+  validate(rejectRequestSchema),
+  rejectRequest,
+);
 
 // ============================================================================
 // Admin User Management Routes (Phase 5f - Plan §0.B)
@@ -150,13 +143,13 @@ router.patch("/requests/:id/reject", validate(rejectRequestSchema), rejectReques
 /**
  * PATCH /api/admin/users/:id/ban
  * Ban a user account
- * 
+ *
  * Body:
  * - reason: Required ban reason (string)
- * 
+ *
  * Prevents user from accessing protected routes. Admin cannot ban themselves.
  * Logs action to Admin_Action_Log
- * 
+ *
  * @access Admin only
  * @see Req 10.5
  */
@@ -165,13 +158,13 @@ router.patch("/users/:id/ban", validate(banUserSchema), banUser);
 /**
  * PATCH /api/admin/users/:id/unban
  * Unban a user account
- * 
+ *
  * Body:
  * - reason: Optional unban reason
- * 
+ *
  * Restores access to a previously banned user.
  * Logs action to Admin_Action_Log
- * 
+ *
  * @access Admin only
  * @see Req 10.6
  */
@@ -180,13 +173,13 @@ router.patch("/users/:id/unban", validate(unbanUserSchema), unbanUser);
 /**
  * PATCH /api/admin/users/:id/role
  * Change user role (user ↔ admin)
- * 
+ *
  * Body:
  * - role: Required role value ("user" | "admin")
- * 
+ *
  * Promotes/demotes users. Admin cannot demote themselves to prevent lockout.
  * Logs action to Admin_Action_Log
- * 
+ *
  * @access Admin only
  * @see Req 1.10, AdminActionType.CHANGE_USER_ROLE
  */
@@ -199,17 +192,21 @@ router.patch("/users/:id/role", validate(changeUserRoleSchema), changeUserRole);
 /**
  * PATCH /api/admin/donations/:id/verify
  * Verify a self-reported blood donation
- * 
+ *
  * Body:
  * - reason: Optional verification notes/reason
- * 
+ *
  * Admin confirms donation actually occurred based on documentation.
  * Updates donation.verified to true, sets verifiedBy and verifiedAt.
  * Logs action to Admin_Action_Log
- * 
+ *
  * @access Admin only
  * @see Req 10.4, Plan §5h
  */
-router.patch("/donations/:id/verify", validate(verifyDonationSchema), verifyDonation);
+router.patch(
+  "/donations/:id/verify",
+  validate(verifyDonationSchema),
+  verifyDonation,
+);
 
 export default router;

@@ -20,7 +20,7 @@ export interface AuthenticatedRequest extends Request {
  * Type guard to check if request has sessionUser
  */
 export const isAuthenticatedRequest = (
-  req: Request
+  req: Request,
 ): req is AuthenticatedRequest => {
   return "sessionUser" in req && req.sessionUser !== undefined;
 };
@@ -46,7 +46,7 @@ interface BetterAuthSession {
     updatedAt: string;
     image?: string | null;
     // Extended fields
-    role?: 'user' | 'admin';
+    role?: "user" | "admin";
     phone?: string;
     district?: string;
     bloodGroup?: string;
@@ -60,73 +60,82 @@ interface BetterAuthSession {
 
 /**
  * Verify session by calling better-auth's session endpoint
- * 
+ *
  * @param cookies - Cookie string from request
  * @returns Session data from better-auth
  * @throws AppError if session is invalid or expired
  */
 const verifySession = async (cookies: string): Promise<BetterAuthSession> => {
   try {
-    console.log('Verifying session with cookies:', cookies ? 'present' : 'missing');
-    
-    // Call better-auth's session endpoint on Next.js frontend
-    const response = await fetch(`${config.auth.betterAuthUrl}/api/auth/get-session`, {
-      method: 'GET',
-      headers: {
-        'Cookie': cookies,
-        'Content-Type': 'application/json',
-      },
-    });
+    console.log(
+      "Verifying session with cookies:",
+      cookies ? "present" : "missing",
+    );
 
-    console.log('Better-auth session response status:', response.status);
+    // Call better-auth's session endpoint on Next.js frontend
+    const response = await fetch(
+      `${config.auth.betterAuthUrl}/api/auth/get-session`,
+      {
+        method: "GET",
+        headers: {
+          Cookie: cookies,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    console.log("Better-auth session response status:", response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Better-auth session error:', errorText);
+      console.error("Better-auth session error:", errorText);
       throw createUnauthorizedError(
         "Invalid or expired session",
-        ERROR_CODES.INVALID_TOKEN
+        ERROR_CODES.INVALID_TOKEN,
       );
     }
 
-    const sessionData = await response.json() as BetterAuthSession;
+    const sessionData = (await response.json()) as BetterAuthSession;
 
-    console.log('Session verified for user:', sessionData.user?.email || 'unknown');
+    console.log(
+      "Session verified for user:",
+      sessionData.user?.email || "unknown",
+    );
 
     if (!sessionData.user) {
       throw createUnauthorizedError(
         "Invalid session structure",
-        ERROR_CODES.INVALID_TOKEN
+        ERROR_CODES.INVALID_TOKEN,
       );
     }
 
     return sessionData;
   } catch (error) {
-    console.error('Session verification failed:', error);
-    
+    console.error("Session verification failed:", error);
+
     if (error instanceof Error && "code" in error) {
       throw error;
     }
 
     throw createUnauthorizedError(
       "Session verification failed",
-      ERROR_CODES.INVALID_TOKEN
+      ERROR_CODES.INVALID_TOKEN,
     );
   }
 };
 
 /**
  * Authentication Middleware (Req 1.1, 1.2, 5.2)
- * 
+ *
  * This middleware:
  * 1. Extracts session cookie from request
  * 2. Verifies session by calling better-auth's session endpoint
  * 3. Checks current ban status from database
  * 4. Attaches user data to request as `req.sessionUser`
  * 5. Returns 401 if session is missing, invalid, expired, or user is banned
- * 
+ *
  * Must be applied to all protected routes
- * 
+ *
  * @example
  * ```typescript
  * router.get('/profile', requireAuth, async (req, res) => {
@@ -143,7 +152,7 @@ export const requireAuth = asyncHandler(
     if (!cookies) {
       throw createUnauthorizedError(
         "Authentication required. Please log in.",
-        ERROR_CODES.UNAUTHORIZED
+        ERROR_CODES.UNAUTHORIZED,
       );
     }
 
@@ -158,10 +167,7 @@ export const requireAuth = asyncHandler(
     });
 
     if (!currentUser) {
-      throw createUnauthorizedError(
-        "User not found",
-        ERROR_CODES.UNAUTHORIZED
-      );
+      throw createUnauthorizedError("User not found", ERROR_CODES.UNAUTHORIZED);
     }
 
     // Check if user is currently banned (from fresh database data)
@@ -197,18 +203,18 @@ export const requireAuth = asyncHandler(
     (req as AuthenticatedRequest).sessionUser = freshUser;
 
     next();
-  }
+  },
 );
 
 /**
  * Optional Authentication Middleware
- * 
+ *
  * Similar to requireAuth but doesn't throw if no cookies are present.
  * Attaches user to request if valid session exists, otherwise continues without user.
  * Also checks current ban status from database.
- * 
+ *
  * Useful for routes that have different behavior for authenticated/unauthenticated users
- * 
+ *
  * @example
  * ```typescript
  * router.get('/requests', optionalAuth, async (req, res) => {
@@ -268,5 +274,5 @@ export const optionalAuth = asyncHandler(
     }
 
     next();
-  }
+  },
 );

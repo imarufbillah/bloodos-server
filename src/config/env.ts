@@ -9,11 +9,15 @@ dotenv.config();
  */
 const envSchema = z.object({
   PORT: z.string().default("5000"),
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
   MONGODB_URI: z.string().url("MONGODB_URI must be a valid URL"),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
   BETTER_AUTH_URL: z.string().url().optional(),
-  IMGBB_API_KEY: z.string().min(1, "IMGBB_API_KEY is required for avatar uploads"),
+  IMGBB_API_KEY: z
+    .string()
+    .min(1, "IMGBB_API_KEY is required for avatar uploads"),
 });
 
 /**

@@ -1,14 +1,3 @@
-/**
- * Admin Controller (Req 18, 10)
- * 
- * Handles:
- * - GET /api/admin/stats - Dashboard statistics (Req 18.3-18.9)
- * - GET /api/admin/requests - Moderation table data (Req 18.9)
- * - Admin actions automatically log via Admin_Action_Log service (Req 5.5, 10)
- * 
- * All endpoints require admin role via requireAdmin middleware
- */
-
 import type { Request, Response } from "express";
 import { ObjectId } from "mongodb";
 import {
@@ -17,7 +6,10 @@ import {
   getDonationsCollection,
 } from "../db/collections.js";
 import type { AuthenticatedRequest } from "../middleware/auth.middleware.js";
-import { asyncHandler, createNotFoundError } from "../middleware/error.middleware.js";
+import {
+  asyncHandler,
+  createNotFoundError,
+} from "../middleware/error.middleware.js";
 import { logAdminAction } from "../services/adminActionLog.service.js";
 import { CacheService, CacheKeys } from "../services/cache.service.js";
 import {
@@ -43,7 +35,7 @@ import type { BloodRequest } from "../types/models/BloodRequest.js";
 
 /**
  * Get admin dashboard statistics
- * 
+ *
  * Returns comprehensive stats for the admin dashboard including:
  * - Total, active, and fulfilled request counts
  * - Total donor count
@@ -51,10 +43,10 @@ import type { BloodRequest } from "../types/models/BloodRequest.js";
  * - Requests by blood group (for PieChart)
  * - Requests by district (for BarChart)
  * - 30-day request trend (for LineChart)
- * 
+ *
  * Req 18.4: Exact field structure
  * Req 18.7: 30-day rolling window for trend
- * 
+ *
  * @route GET /api/admin/stats
  * @access Admin only
  */
@@ -71,124 +63,129 @@ export const getAdminStats = asyncHandler(
     thirtyDaysAgo.setDate(now.getDate() - 30);
 
     // Use single aggregation for requests data (performance optimization)
-    const requestsStats = await requestsCollection.aggregate([
-      {
-        $facet: {
-          // Total requests count
-          totalRequests: [
-            { $count: 'count' }
-          ],
-          
-          // Active requests (open + in_progress)
-          activeRequests: [
-            {
-              $match: {
-                status: { $in: [RequestStatus.OPEN, RequestStatus.IN_PROGRESS] }
-              }
-            },
-            { $count: 'count' }
-          ],
-          
-          // Fulfilled requests
-          fulfilledRequests: [
-            {
-              $match: {
-                status: RequestStatus.FULFILLED
-              }
-            },
-            { $count: 'count' }
-          ],
-          
-          // Requests by blood group
-          requestsByBloodGroup: [
-            {
-              $group: {
-                _id: '$bloodGroup',
-                count: { $sum: 1 }
-              }
-            },
-            { $sort: { count: -1 } },
-            {
-              $project: {
-                bloodGroup: '$_id',
-                count: 1,
-                _id: 0
-              }
-            }
-          ],
-          
-          // Requests by district
-          requestsByDistrict: [
-            {
-              $group: {
-                _id: '$district',
-                count: { $sum: 1 }
-              }
-            },
-            { $sort: { count: -1 } },
-            {
-              $project: {
-                district: '$_id',
-                count: 1,
-                _id: 0
-              }
-            }
-          ],
-          
-          // Request trend over last 30 days
-          requestTrend: [
-            {
-              $match: {
-                createdAt: { $gte: thirtyDaysAgo }
-              }
-            },
-            {
-              $group: {
-                _id: {
-                  $dateToString: {
-                    format: '%Y-%m-%d',
-                    date: '$createdAt'
-                  }
+    const requestsStats = await requestsCollection
+      .aggregate([
+        {
+          $facet: {
+            // Total requests count
+            totalRequests: [{ $count: "count" }],
+
+            // Active requests (open + in_progress)
+            activeRequests: [
+              {
+                $match: {
+                  status: {
+                    $in: [RequestStatus.OPEN, RequestStatus.IN_PROGRESS],
+                  },
                 },
-                count: { $sum: 1 }
-              }
-            },
-            { $sort: { _id: 1 } },
-            {
-              $project: {
-                date: '$_id',
-                count: 1,
-                _id: 0
-              }
-            }
-          ]
-        }
-      }
-    ]).toArray();
+              },
+              { $count: "count" },
+            ],
+
+            // Fulfilled requests
+            fulfilledRequests: [
+              {
+                $match: {
+                  status: RequestStatus.FULFILLED,
+                },
+              },
+              { $count: "count" },
+            ],
+
+            // Requests by blood group
+            requestsByBloodGroup: [
+              {
+                $group: {
+                  _id: "$bloodGroup",
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { count: -1 } },
+              {
+                $project: {
+                  bloodGroup: "$_id",
+                  count: 1,
+                  _id: 0,
+                },
+              },
+            ],
+
+            // Requests by district
+            requestsByDistrict: [
+              {
+                $group: {
+                  _id: "$district",
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { count: -1 } },
+              {
+                $project: {
+                  district: "$_id",
+                  count: 1,
+                  _id: 0,
+                },
+              },
+            ],
+
+            // Request trend over last 30 days
+            requestTrend: [
+              {
+                $match: {
+                  createdAt: { $gte: thirtyDaysAgo },
+                },
+              },
+              {
+                $group: {
+                  _id: {
+                    $dateToString: {
+                      format: "%Y-%m-%d",
+                      date: "$createdAt",
+                    },
+                  },
+                  count: { $sum: 1 },
+                },
+              },
+              { $sort: { _id: 1 } },
+              {
+                $project: {
+                  date: "$_id",
+                  count: 1,
+                  _id: 0,
+                },
+              },
+            ],
+          },
+        },
+      ])
+      .toArray();
 
     // Get donor and donation counts in parallel
     const [totalDonors, donationsThisMonth] = await Promise.all([
       usersCollection.countDocuments({ isDonor: true }),
-      donationsCollection.countDocuments({ donationDate: { $gte: startOfMonth } })
+      donationsCollection.countDocuments({
+        donationDate: { $gte: startOfMonth },
+      }),
     ]);
 
     // Extract results from faceted aggregation
     const statsData = requestsStats[0];
     if (!statsData) {
-      throw new Error('Failed to fetch request statistics');
+      throw new Error("Failed to fetch request statistics");
     }
-    
+
     const totalRequests = statsData.totalRequests[0]?.count || 0;
     const activeRequests = statsData.activeRequests[0]?.count || 0;
     const fulfilledRequests = statsData.fulfilledRequests[0]?.count || 0;
-    const requestsByBloodGroup: BloodGroupStat[] = statsData.requestsByBloodGroup;
+    const requestsByBloodGroup: BloodGroupStat[] =
+      statsData.requestsByBloodGroup;
     const requestsByDistrict: DistrictStat[] = statsData.requestsByDistrict;
-    
+
     // Fill gaps in trend data to ensure all 30 days present
     const requestTrend: TrendDataPoint[] = fillTrendGaps(
       statsData.requestTrend,
       thirtyDaysAgo,
-      now
+      now,
     );
 
     // Build response matching Req 18.4 exact structure
@@ -204,7 +201,7 @@ export const getAdminStats = asyncHandler(
     };
 
     res.status(200).json(stats);
-  }
+  },
 );
 
 // ============================================================================
@@ -213,13 +210,13 @@ export const getAdminStats = asyncHandler(
 
 /**
  * Get all blood requests for admin moderation
- * 
+ *
  * Returns complete list of blood requests with all details for the
  * admin moderation table. Unlike the public endpoint, this includes
  * unmasked contact information and all statuses.
- * 
+ *
  * Supports filtering and sorting for the admin interface
- * 
+ *
  * @route GET /api/admin/requests
  * @query status - Filter by status (optional)
  * @query urgency - Filter by urgency (optional)
@@ -266,7 +263,10 @@ export const getAdminRequests = asyncHandler(
 
     // Parse pagination
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 20));
+    const limitNum = Math.min(
+      100,
+      Math.max(1, parseInt(limit as string, 10) || 20),
+    );
     const skip = (pageNum - 1) * limitNum;
 
     // Determine sort order
@@ -312,7 +312,7 @@ export const getAdminRequests = asyncHandler(
       hasNextPage,
       hasPrevPage,
     });
-  }
+  },
 );
 
 // ============================================================================
@@ -321,12 +321,12 @@ export const getAdminRequests = asyncHandler(
 
 /**
  * Get all users for admin user management
- * 
+ *
  * Returns complete list of users with all details for the admin
  * user management table.
- * 
+ *
  * Supports filtering for the admin interface
- * 
+ *
  * @route GET /api/admin/users
  * @query role - Filter by role: user|admin (optional)
  * @query isDonor - Filter by donor status: true|false (optional)
@@ -373,7 +373,10 @@ export const getAdminUsers = asyncHandler(
 
     // Parse pagination
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 20));
+    const limitNum = Math.min(
+      100,
+      Math.max(1, parseInt(limit as string, 10) || 20),
+    );
     const skip = (pageNum - 1) * limitNum;
 
     // Get total count and users in parallel
@@ -419,7 +422,7 @@ export const getAdminUsers = asyncHandler(
       hasNextPage,
       hasPrevPage,
     });
-  }
+  },
 );
 
 // ============================================================================
@@ -428,13 +431,13 @@ export const getAdminUsers = asyncHandler(
 
 /**
  * Approve a blood request (admin moderation action)
- * 
+ *
  * This marks a request as approved for display. While the main workflow
  * doesn't have an explicit "approval" status, this could be used for
  * pre-moderation or to unblock a flagged request.
- * 
+ *
  * Logs action via Admin_Action_Log (Req 10.2)
- * 
+ *
  * @route PATCH /api/admin/requests/:id/approve
  * @access Admin only
  */
@@ -446,7 +449,7 @@ export const approveRequest = asyncHandler(
     const requestsCollection = getBloodRequestsCollection();
 
     // Validate id parameter
-    if (!id || typeof id !== 'string') {
+    if (!id || typeof id !== "string") {
       throw createNotFoundError("Invalid request ID");
     }
 
@@ -490,7 +493,7 @@ export const approveRequest = asyncHandler(
           status: newStatus,
           updatedAt: new Date(),
         },
-      }
+      },
     );
 
     // Log admin action (Req 10.2)
@@ -513,7 +516,7 @@ export const approveRequest = asyncHandler(
       ipAddress: req.ip || "unknown",
     };
 
-    if (typeof reason === 'string' && reason.trim().length > 0) {
+    if (typeof reason === "string" && reason.trim().length > 0) {
       logParams.reason = reason;
     }
 
@@ -524,9 +527,9 @@ export const approveRequest = asyncHandler(
 
     // Invalidate relevant caches
     await CacheService.invalidateMultiple([
-      CacheKeys.endpointPattern('/api/requests'),
-      CacheKeys.endpointPattern('/api/admin/stats'),
-      CacheKeys.endpointPattern('/api/admin/requests'),
+      CacheKeys.endpointPattern("/api/requests"),
+      CacheKeys.endpointPattern("/api/admin/stats"),
+      CacheKeys.endpointPattern("/api/admin/requests"),
     ]);
 
     res.status(200).json({
@@ -537,7 +540,7 @@ export const approveRequest = asyncHandler(
         userId: updatedRequest!.userId.toString(),
       },
     });
-  }
+  },
 );
 
 // ============================================================================
@@ -546,12 +549,12 @@ export const approveRequest = asyncHandler(
 
 /**
  * Reject a blood request (admin moderation action)
- * 
+ *
  * This marks a request as cancelled with a rejection reason.
  * Can be used for requests that violate policies or are spam.
- * 
+ *
  * Logs action via Admin_Action_Log (Req 10.3)
- * 
+ *
  * @route PATCH /api/admin/requests/:id/reject
  * @access Admin only
  */
@@ -573,7 +576,7 @@ export const rejectRequest = asyncHandler(
     }
 
     // Validate id parameter
-    if (!id || typeof id !== 'string') {
+    if (!id || typeof id !== "string") {
       throw createNotFoundError("Invalid request ID");
     }
 
@@ -611,7 +614,7 @@ export const rejectRequest = asyncHandler(
           status: RequestStatus.CANCELLED,
           updatedAt: new Date(),
         },
-      }
+      },
     );
 
     // Log admin action (Req 10.3)
@@ -631,9 +634,9 @@ export const rejectRequest = asyncHandler(
 
     // Invalidate relevant caches
     await CacheService.invalidateMultiple([
-      CacheKeys.endpointPattern('/api/requests'),
-      CacheKeys.endpointPattern('/api/admin/stats'),
-      CacheKeys.endpointPattern('/api/admin/requests'),
+      CacheKeys.endpointPattern("/api/requests"),
+      CacheKeys.endpointPattern("/api/admin/stats"),
+      CacheKeys.endpointPattern("/api/admin/requests"),
     ]);
 
     res.status(200).json({
@@ -644,7 +647,7 @@ export const rejectRequest = asyncHandler(
         userId: updatedRequest!.userId.toString(),
       },
     });
-  }
+  },
 );
 
 // ============================================================================
@@ -657,12 +660,12 @@ export const rejectRequest = asyncHandler(
 
 /**
  * Ban a user account
- * 
+ *
  * Prevents the user from accessing protected routes and performing actions.
  * Requires a reason for the ban. Admins cannot ban themselves.
- * 
+ *
  * Logs action via Admin_Action_Log (Req 10.5)
- * 
+ *
  * @route PATCH /api/admin/users/:id/ban
  * @access Admin only
  */
@@ -684,7 +687,7 @@ export const banUser = asyncHandler(
     }
 
     // Validate id parameter
-    if (!id || typeof id !== 'string') {
+    if (!id || typeof id !== "string") {
       throw createNotFoundError("Invalid user ID");
     }
 
@@ -734,7 +737,7 @@ export const banUser = asyncHandler(
           banReason: reason,
           updatedAt: new Date(),
         },
-      }
+      },
     );
 
     // Log admin action (Req 10.5)
@@ -754,8 +757,8 @@ export const banUser = asyncHandler(
 
     // Invalidate relevant caches
     await CacheService.invalidateMultiple([
-      CacheKeys.endpointPattern('/api/admin/users'),
-      CacheKeys.endpointPattern('/api/donors'), // If user is a donor
+      CacheKeys.endpointPattern("/api/admin/users"),
+      CacheKeys.endpointPattern("/api/donors"), // If user is a donor
     ]);
 
     res.status(200).json({
@@ -768,7 +771,7 @@ export const banUser = asyncHandler(
         banReason: updatedUser!.banReason,
       },
     });
-  }
+  },
 );
 
 // ============================================================================
@@ -777,11 +780,11 @@ export const banUser = asyncHandler(
 
 /**
  * Unban a user account
- * 
+ *
  * Restores access to a previously banned user.
- * 
+ *
  * Logs action via Admin_Action_Log (Req 10.6)
- * 
+ *
  * @route PATCH /api/admin/users/:id/unban
  * @access Admin only
  */
@@ -793,7 +796,7 @@ export const unbanUser = asyncHandler(
     const usersCollection = getUsersCollection();
 
     // Validate id parameter
-    if (!id || typeof id !== 'string') {
+    if (!id || typeof id !== "string") {
       throw createNotFoundError("Invalid user ID");
     }
 
@@ -844,7 +847,7 @@ export const unbanUser = asyncHandler(
           banExpiresAt: null,
           updatedAt: new Date(),
         },
-      }
+      },
     );
 
     // Log admin action (Req 10.6)
@@ -867,7 +870,7 @@ export const unbanUser = asyncHandler(
       ipAddress: req.ip || "unknown",
     };
 
-    if (typeof reason === 'string' && reason.trim().length > 0) {
+    if (typeof reason === "string" && reason.trim().length > 0) {
       logParams.reason = reason;
     }
 
@@ -878,8 +881,8 @@ export const unbanUser = asyncHandler(
 
     // Invalidate relevant caches
     await CacheService.invalidateMultiple([
-      CacheKeys.endpointPattern('/api/admin/users'),
-      CacheKeys.endpointPattern('/api/donors'), // If user is a donor
+      CacheKeys.endpointPattern("/api/admin/users"),
+      CacheKeys.endpointPattern("/api/donors"), // If user is a donor
     ]);
 
     res.status(200).json({
@@ -892,7 +895,7 @@ export const unbanUser = asyncHandler(
         banReason: updatedUser!.banReason,
       },
     });
-  }
+  },
 );
 
 // ============================================================================
@@ -901,12 +904,12 @@ export const unbanUser = asyncHandler(
 
 /**
  * Change a user's role (user ↔ admin)
- * 
+ *
  * Allows admins to promote users to admin or demote admins to users.
  * Admins cannot demote themselves to prevent lockout.
- * 
+ *
  * Logs action via Admin_Action_Log (Req 10, extending for role changes)
- * 
+ *
  * @route PATCH /api/admin/users/:id/role
  * @access Admin only
  */
@@ -932,13 +935,17 @@ export const changeUserRole = asyncHandler(
       res.status(400).json({
         code: "validation_error",
         message: "Invalid role. Must be 'user' or 'admin'",
-        details: { field: "role", rule: "enum", allowedValues: ["user", "admin"] },
+        details: {
+          field: "role",
+          rule: "enum",
+          allowedValues: ["user", "admin"],
+        },
       });
       return;
     }
 
     // Validate id parameter
-    if (!id || typeof id !== 'string') {
+    if (!id || typeof id !== "string") {
       throw createNotFoundError("Invalid user ID");
     }
 
@@ -995,7 +1002,7 @@ export const changeUserRole = asyncHandler(
           role: role,
           updatedAt: new Date(),
         },
-      }
+      },
     );
 
     // Log admin action (using CHANGE_USER_ROLE from AdminActionType)
@@ -1014,7 +1021,7 @@ export const changeUserRole = asyncHandler(
 
     // Invalidate relevant caches
     await CacheService.invalidateMultiple([
-      CacheKeys.endpointPattern('/api/admin/users'),
+      CacheKeys.endpointPattern("/api/admin/users"),
     ]);
 
     res.status(200).json({
@@ -1026,7 +1033,7 @@ export const changeUserRole = asyncHandler(
         role: updatedUser!.role,
       },
     });
-  }
+  },
 );
 
 // ============================================================================
@@ -1035,12 +1042,12 @@ export const changeUserRole = asyncHandler(
 
 /**
  * Verify a self-reported blood donation
- * 
+ *
  * Admin confirms that a donation actually occurred, based on documentation
  * or verification from the medical facility.
- * 
+ *
  * Logs action via Admin_Action_Log (Req 10.4)
- * 
+ *
  * @route PATCH /api/admin/donations/:id/verify
  * @access Admin only
  */
@@ -1052,7 +1059,7 @@ export const verifyDonation = asyncHandler(
     const donationsCollection = getDonationsCollection();
 
     // Validate id parameter
-    if (!id || typeof id !== 'string') {
+    if (!id || typeof id !== "string") {
       throw createNotFoundError("Invalid donation ID");
     }
 
@@ -1103,7 +1110,7 @@ export const verifyDonation = asyncHandler(
           verifiedBy: new ObjectId(sessionUser.id),
           verifiedAt: now,
         },
-      }
+      },
     );
 
     // Log admin action (Req 10.4)
@@ -1126,27 +1133,38 @@ export const verifyDonation = asyncHandler(
       ipAddress: req.ip || "unknown",
     };
 
-    if (typeof reason === 'string' && reason.trim().length > 0) {
+    if (typeof reason === "string" && reason.trim().length > 0) {
       logParams.reason = reason;
     }
 
     await logAdminAction(logParams);
 
     // Notify donor that their donation was verified (Req 9.7)
-    const { notifyDonationVerified } = await import("../services/notification.service.js");
-    notifyDonationVerified(donation.userId, donationId, donation.donationDate).catch((error) => {
+    const { notifyDonationVerified } =
+      await import("../services/notification.service.js");
+    notifyDonationVerified(
+      donation.userId,
+      donationId,
+      donation.donationDate,
+    ).catch((error) => {
       console.error("Failed to notify donor of donation verification:", error);
       // Don't fail the verification if notification fails
     });
 
     // Fetch updated donation
-    const updatedDonation = await donationsCollection.findOne({ _id: donationId });
+    const updatedDonation = await donationsCollection.findOne({
+      _id: donationId,
+    });
 
     // Invalidate relevant caches
     await CacheService.invalidateMultiple([
-      CacheKeys.endpointPattern(`/api/users/me/donations:user:${donation.userId.toString()}`),
-      CacheKeys.endpointPattern(`/api/users/me/analytics:user:${donation.userId.toString()}`),
-      CacheKeys.endpointPattern('/api/admin/stats'),
+      CacheKeys.endpointPattern(
+        `/api/users/me/donations:user:${donation.userId.toString()}`,
+      ),
+      CacheKeys.endpointPattern(
+        `/api/users/me/analytics:user:${donation.userId.toString()}`,
+      ),
+      CacheKeys.endpointPattern("/api/admin/stats"),
     ]);
 
     res.status(200).json({
@@ -1164,7 +1182,7 @@ export const verifyDonation = asyncHandler(
         createdAt: updatedDonation!.createdAt.toISOString(),
       },
     });
-  }
+  },
 );
 
 // ============================================================================
@@ -1174,7 +1192,7 @@ export const verifyDonation = asyncHandler(
 /**
  * Fill gaps in trend data to ensure all 30 days are present
  * Even days with 0 requests should be shown
- * 
+ *
  * @param trendData - Sparse trend data from DB
  * @param startDate - Start of 30-day window
  * @param endDate - End of 30-day window
@@ -1183,7 +1201,7 @@ export const verifyDonation = asyncHandler(
 function fillTrendGaps(
   trendData: TrendDataPoint[],
   startDate: Date,
-  endDate: Date
+  endDate: Date,
 ): TrendDataPoint[] {
   const result: TrendDataPoint[] = [];
   const dataMap = new Map(trendData.map((d) => [d.date, d.count]));
@@ -1192,7 +1210,7 @@ function fillTrendGaps(
 
   while (currentDate <= endDate) {
     const dateStr = currentDate.toISOString().split("T")[0];
-    
+
     if (dateStr) {
       result.push({
         date: dateStr,

@@ -1,31 +1,35 @@
 /**
  * Cache Middleware
- * 
+ *
  * Provides automatic response caching for GET requests.
  * Caches successful responses (200 status) and serves from cache on subsequent requests.
  */
 
-import type { Request, Response, NextFunction } from 'express';
-import { CacheService, CacheKeys } from '../services/cache.service.js';
+import type { Request, Response, NextFunction } from "express";
+import { CacheService, CacheKeys } from "../services/cache.service.js";
 
 /**
  * Cache middleware factory
  * Creates middleware that caches GET responses
- * 
+ *
  * @param ttl - Time to live in seconds (default: 120 seconds / 2 minutes)
  * @returns Express middleware
- * 
+ *
  * @example
  * // Cache for 60 seconds
  * router.get('/api/requests', cacheMiddleware(60), listRequests);
- * 
+ *
  * // Cache for default 120 seconds
  * router.get('/api/donors', cacheMiddleware(), listDonors);
  */
 export function cacheMiddleware(ttl: number = 120) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     // Only cache GET requests
-    if (req.method !== 'GET') {
+    if (req.method !== "GET") {
       return next();
     }
 
@@ -38,13 +42,13 @@ export function cacheMiddleware(ttl: number = 120) {
 
       if (cached) {
         // Cache hit - return cached response
-        res.setHeader('X-Cache', 'HIT');
+        res.setHeader("X-Cache", "HIT");
         res.status(200).json(cached);
         return;
       }
 
       // Cache miss - continue to controller and cache the response
-      res.setHeader('X-Cache', 'MISS');
+      res.setHeader("X-Cache", "MISS");
 
       // Store original res.json function
       const originalJson = res.json.bind(res);
@@ -55,7 +59,7 @@ export function cacheMiddleware(ttl: number = 120) {
         if (res.statusCode === 200) {
           // Cache asynchronously (don't wait)
           CacheService.set(cacheKey, body, ttl).catch((error) => {
-            console.error('Error caching response:', error);
+            console.error("Error caching response:", error);
           });
         }
 
@@ -66,7 +70,7 @@ export function cacheMiddleware(ttl: number = 120) {
       next();
     } catch (error) {
       // If caching fails, continue without cache
-      console.error('Cache middleware error:', error);
+      console.error("Cache middleware error:", error);
       next();
     }
   };
@@ -75,14 +79,18 @@ export function cacheMiddleware(ttl: number = 120) {
 /**
  * Conditional cache middleware
  * Only caches if user is not authenticated (public requests)
- * 
+ *
  * This is useful for endpoints that return different data for authenticated users
- * 
+ *
  * @param ttl - Time to live in seconds
  * @returns Express middleware
  */
 export function publicCacheMiddleware(ttl: number = 120) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     // Check if user is authenticated
     const sessionUser = (req as any).sessionUser;
 
@@ -99,14 +107,18 @@ export function publicCacheMiddleware(ttl: number = 120) {
 /**
  * Cache middleware with user-specific keys
  * Caches responses per user (useful for authenticated endpoints)
- * 
+ *
  * @param ttl - Time to live in seconds
  * @returns Express middleware
  */
 export function userCacheMiddleware(ttl: number = 60) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     // Only cache GET requests
-    if (req.method !== 'GET') {
+    if (req.method !== "GET") {
       return next();
     }
 
@@ -126,13 +138,13 @@ export function userCacheMiddleware(ttl: number = 60) {
 
       if (cached) {
         // Cache hit
-        res.setHeader('X-Cache', 'HIT');
+        res.setHeader("X-Cache", "HIT");
         res.status(200).json(cached);
         return;
       }
 
       // Cache miss
-      res.setHeader('X-Cache', 'MISS');
+      res.setHeader("X-Cache", "MISS");
 
       // Store original res.json function
       const originalJson = res.json.bind(res);
@@ -142,7 +154,7 @@ export function userCacheMiddleware(ttl: number = 60) {
         // Only cache successful responses
         if (res.statusCode === 200) {
           CacheService.set(cacheKey, body, ttl).catch((error) => {
-            console.error('Error caching user-specific response:', error);
+            console.error("Error caching user-specific response:", error);
           });
         }
 
@@ -151,7 +163,7 @@ export function userCacheMiddleware(ttl: number = 60) {
 
       next();
     } catch (error) {
-      console.error('User cache middleware error:', error);
+      console.error("User cache middleware error:", error);
       next();
     }
   };
@@ -161,14 +173,17 @@ export function userCacheMiddleware(ttl: number = 60) {
  * No-cache middleware
  * Explicitly disables caching for specific routes
  * Sets appropriate cache-control headers
- * 
+ *
  * @returns Express middleware
  */
 export function noCacheMiddleware() {
   return (req: Request, res: Response, next: NextFunction): void => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, private",
+    );
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     next();
   };
 }
@@ -176,7 +191,7 @@ export function noCacheMiddleware() {
 /**
  * Cache warming utility
  * Preloads cache with data for frequently accessed endpoints
- * 
+ *
  * @param endpoint - Endpoint URL to warm
  * @param data - Data to cache
  * @param ttl - Time to live in seconds
@@ -184,24 +199,28 @@ export function noCacheMiddleware() {
 export async function warmCache(
   endpoint: string,
   data: any,
-  ttl: number = 120
+  ttl: number = 120,
 ): Promise<void> {
-  const cacheKey = CacheKeys.endpoint('GET', endpoint);
+  const cacheKey = CacheKeys.endpoint("GET", endpoint);
   await CacheService.set(cacheKey, data, ttl);
 }
 
 /**
  * Invalidate cache for specific endpoint patterns
  * Helper function to be called from controllers after mutations
- * 
+ *
  * @param patterns - Array of URL patterns to invalidate
- * 
+ *
  * @example
  * // After creating a blood request
  * await invalidateEndpointCache(['/api/requests*', '/api/admin/stats']);
  */
-export async function invalidateEndpointCache(patterns: string[]): Promise<void> {
-  const cachePatterns = patterns.map(pattern => CacheKeys.endpointPattern(pattern));
+export async function invalidateEndpointCache(
+  patterns: string[],
+): Promise<void> {
+  const cachePatterns = patterns.map((pattern) =>
+    CacheKeys.endpointPattern(pattern),
+  );
   await CacheService.invalidateMultiple(cachePatterns);
 }
 
@@ -211,16 +230,16 @@ export async function invalidateEndpointCache(patterns: string[]): Promise<void>
 export const CacheTTL = {
   // Very short cache for frequently changing data
   SHORT: 30, // 30 seconds
-  
+
   // Default cache for most endpoints
   MEDIUM: 120, // 2 minutes
-  
+
   // Longer cache for stable data
   LONG: 300, // 5 minutes
-  
+
   // Very long cache for rarely changing data
   VERY_LONG: 900, // 15 minutes
-  
+
   // User-specific cached data
   USER_DATA: 60, // 1 minute
 };

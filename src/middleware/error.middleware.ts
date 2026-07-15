@@ -59,7 +59,7 @@ export const ERROR_CODES = {
 
 /**
  * Custom Application Error Class (Req 11.1-11.8)
- * 
+ *
  * Extends the native Error class with additional properties:
  * - code: Machine-readable error code
  * - httpStatus: HTTP status code to return
@@ -78,10 +78,10 @@ export class AppError extends Error {
     message: string,
     httpStatus: number = HTTP_STATUS.INTERNAL_SERVER_ERROR,
     details?: Record<string, unknown> | null,
-    isOperational: boolean = true
+    isOperational: boolean = true,
   ) {
     super(message);
-    
+
     // Maintains proper stack trace for where error was thrown (V8 only)
     Error.captureStackTrace(this, this.constructor);
 
@@ -118,13 +118,13 @@ export class AppError extends Error {
  */
 export const createValidationError = (
   message: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): AppError => {
   return new AppError(
     ERROR_CODES.VALIDATION_ERROR,
     message,
     HTTP_STATUS.BAD_REQUEST,
-    details
+    details,
   );
 };
 
@@ -134,7 +134,7 @@ export const createValidationError = (
  */
 export const createUnauthorizedError = (
   message: string = "Authentication required",
-  code: string = ERROR_CODES.UNAUTHORIZED
+  code: string = ERROR_CODES.UNAUTHORIZED,
 ): AppError => {
   return new AppError(code, message, HTTP_STATUS.UNAUTHORIZED);
 };
@@ -145,13 +145,13 @@ export const createUnauthorizedError = (
  */
 export const createForbiddenError = (
   message: string = "Access denied",
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): AppError => {
   return new AppError(
     ERROR_CODES.FORBIDDEN,
     message,
     HTTP_STATUS.FORBIDDEN,
-    details
+    details,
   );
 };
 
@@ -161,17 +161,13 @@ export const createForbiddenError = (
  */
 export const createNotFoundError = (
   resource: string,
-  identifier?: string | number
+  identifier?: string | number,
 ): AppError => {
   const message = identifier
     ? `${resource} with identifier '${identifier}' not found`
     : `${resource} not found`;
 
-  return new AppError(
-    ERROR_CODES.NOT_FOUND,
-    message,
-    HTTP_STATUS.NOT_FOUND
-  );
+  return new AppError(ERROR_CODES.NOT_FOUND, message, HTTP_STATUS.NOT_FOUND);
 };
 
 /**
@@ -180,13 +176,13 @@ export const createNotFoundError = (
  */
 export const createConflictError = (
   message: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): AppError => {
   return new AppError(
     ERROR_CODES.DUPLICATE_ENTRY,
     message,
     HTTP_STATUS.CONFLICT,
-    details
+    details,
   );
 };
 
@@ -196,13 +192,13 @@ export const createConflictError = (
  */
 export const createInvalidStateError = (
   message: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): AppError => {
   return new AppError(
     ERROR_CODES.INVALID_STATE,
     message,
     HTTP_STATUS.UNPROCESSABLE_ENTITY,
-    details
+    details,
   );
 };
 
@@ -212,14 +208,14 @@ export const createInvalidStateError = (
  */
 export const createRateLimitError = (
   message: string = "Too many requests. Please try again later.",
-  retryAfter?: number
+  retryAfter?: number,
 ): AppError => {
   const details = retryAfter ? { retryAfter } : undefined;
   return new AppError(
     ERROR_CODES.RATE_LIMIT_EXCEEDED,
     message,
     HTTP_STATUS.TOO_MANY_REQUESTS,
-    details
+    details,
   );
 };
 
@@ -229,26 +225,26 @@ export const createRateLimitError = (
  */
 export const createInternalError = (
   message: string = "An unexpected error occurred",
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): AppError => {
   return new AppError(
     ERROR_CODES.INTERNAL_ERROR,
     message,
     HTTP_STATUS.INTERNAL_SERVER_ERROR,
     details,
-    false // Programming errors are not operational
+    false, // Programming errors are not operational
   );
 };
 
 /**
  * Centralized Error Handler Middleware (Req 11.1-11.8)
- * 
+ *
  * This middleware:
  * - Catches all errors thrown in the application
  * - Formats them consistently as ErrorResponse
  * - Logs errors appropriately based on environment
  * - Never leaks internal error details to clients in production (Req 11.8)
- * 
+ *
  * Must be mounted as the LAST middleware in app.ts
  */
 export const errorHandler = (
@@ -256,7 +252,7 @@ export const errorHandler = (
   req: Request,
   res: Response,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _next: NextFunction
+  _next: NextFunction,
 ): void => {
   // Default to internal server error
   let statusCode: number = HTTP_STATUS.INTERNAL_SERVER_ERROR;
@@ -294,7 +290,7 @@ export const errorHandler = (
 
     // In production, never leak internal error details (Req 11.8)
     const isProduction = process.env.NODE_ENV === "production";
-    
+
     errorResponse = {
       code: ERROR_CODES.INTERNAL_ERROR,
       message: isProduction
@@ -316,7 +312,7 @@ export const errorHandler = (
 export const notFoundHandler = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void => {
   const error = createNotFoundError("Route", req.path);
   next(error);
@@ -324,10 +320,10 @@ export const notFoundHandler = (
 
 /**
  * Async Route Handler Wrapper (Req 11.3)
- * 
+ *
  * Express 5.2.1 has built-in async error handling, but this wrapper
  * provides explicit error forwarding and type safety
- * 
+ *
  * Usage:
  * router.get('/users', asyncHandler(async (req, res) => {
  *   const users = await getUsersFromDB();
@@ -337,7 +333,7 @@ export const notFoundHandler = (
 export type AsyncRequestHandler = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => Promise<void | Response>;
 
 export const asyncHandler = (fn: AsyncRequestHandler) => {

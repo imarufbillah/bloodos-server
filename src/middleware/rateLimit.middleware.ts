@@ -5,14 +5,14 @@ import type { ErrorResponse } from "../types/shared.js";
 
 /**
  * Rate Limiting Middleware (Req 15.1-15.6)
- * 
+ *
  * Protects authentication endpoints from brute-force attacks by limiting
  * the number of requests per IP address within a time window.
  */
 
 /**
  * Custom handler for rate limit exceeded responses (Req 15.4-15.5)
- * 
+ *
  * Returns a consistent error response format with:
  * - HTTP 429 status
  * - code: "rate_limit_exceeded"
@@ -30,7 +30,7 @@ const rateLimitHandler = (req: Request, res: Response): void => {
   // Create error using our standard error factory
   const error = createRateLimitError(
     "Too many requests from this IP. Please try again later.",
-    retryAfterSeconds
+    retryAfterSeconds,
   );
 
   // Build error response
@@ -65,11 +65,11 @@ const skipRateLimit = (_req: Request): boolean => {
 
 /**
  * Auth Rate Limiter (Req 15.1-15.3)
- * 
+ *
  * Applied to authentication endpoints:
  * - POST /api/auth/login
  * - POST /api/auth/register
- * 
+ *
  * Configuration:
  * - 5 requests per 15 minutes per IP address (Req 15.3)
  * - Applies only to these specific auth endpoints (Req 15.6)
@@ -112,7 +112,7 @@ export const authRateLimiter: RateLimitRequestHandler = rateLimit({
 
 /**
  * Contact Form Rate Limiter
- * 
+ *
  * Applied to public contact form endpoint to prevent spam
  * More lenient than auth limiter since it's a less sensitive operation
  */
@@ -143,7 +143,7 @@ export const contactFormRateLimiter: RateLimitRequestHandler = rateLimit({
 
 /**
  * General API Rate Limiter (Optional)
- * 
+ *
  * Can be applied globally to prevent abuse of any API endpoint
  * Much more lenient than specific rate limiters
  */
@@ -174,14 +174,14 @@ export const generalApiRateLimiter: RateLimitRequestHandler = rateLimit({
 
 /**
  * Create a custom rate limiter with specific configuration
- * 
+ *
  * @param windowMinutes - Time window in minutes
  * @param maxRequests - Maximum requests per window
  * @returns Configured rate limiter middleware
  */
 export const createCustomRateLimiter = (
   windowMinutes: number,
-  maxRequests: number
+  maxRequests: number,
 ): RateLimitRequestHandler => {
   return rateLimit({
     windowMs: windowMinutes * 60 * 1000,

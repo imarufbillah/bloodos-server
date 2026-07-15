@@ -51,7 +51,7 @@ router.get(
   optionalAuth, // Optional auth to enable contact masking based on ownership
   CacheStrategies.publicList(), // Cache public list requests
   validate(listRequestsQuerySchema),
-  listBloodRequests as any // Type compatibility with Express handler
+  listBloodRequests as any, // Type compatibility with Express handler
 );
 
 /**
@@ -61,14 +61,14 @@ router.get(
  * - Returns user's own requests (unmasked contact info)
  * - Supports pagination via query params: page, limit
  * - Cached per user for 1 minute
- * 
+ *
  * IMPORTANT: This must come BEFORE /:id route to avoid treating "mine" as an ID
  */
 router.get(
   "/mine",
   requireAuth,
   CacheStrategies.userSpecific(), // User-specific cache
-  getMyBloodRequests
+  getMyBloodRequests,
 );
 
 /**
@@ -80,14 +80,14 @@ router.get(
  * - Ranks by urgency then date
  * - Limit 6 results
  * - Cached for 2 minutes (public cache)
- * 
+ *
  * IMPORTANT: This must come BEFORE /:id route to avoid route collision
  */
 router.get(
   "/related/:id",
   optionalAuth,
   CacheStrategies.publicDetail(), // Cache related requests
-  getRelatedRequests
+  getRelatedRequests,
 );
 
 /**
@@ -102,7 +102,7 @@ router.get(
   "/:id",
   optionalAuth, // Optional auth to enable contact masking based on ownership
   CacheStrategies.publicDetail(), // Cache single request details
-  getBloodRequestById
+  getBloodRequestById,
 );
 
 // ============================================================================
@@ -121,7 +121,7 @@ router.post(
   "/",
   requireAuth,
   validate(createBloodRequestSchema),
-  createBloodRequest
+  createBloodRequest,
 );
 
 /**
@@ -137,7 +137,7 @@ router.patch(
   "/:id/status",
   requireAuth,
   validate(updateRequestStatusSchema),
-  updateBloodRequestStatus
+  updateBloodRequestStatus,
 );
 
 /**
@@ -147,11 +147,7 @@ router.patch(
  * - Owner or Admin only
  * - Logs admin deletions (Req 10.3)
  */
-router.delete(
-  "/:id",
-  requireAuth,
-  deleteBloodRequest
-);
+router.delete("/:id", requireAuth, deleteBloodRequest);
 
 // ============================================================================
 // Phase 5b: Respond/Responses Workflow Routes
@@ -170,7 +166,7 @@ router.post(
   "/:id/respond",
   requireAuth,
   validate(createResponseSchema),
-  respondToBloodRequest
+  respondToBloodRequest,
 );
 
 /**
@@ -180,11 +176,7 @@ router.post(
  * - Owner or Admin only
  * - Returns responses with donor information
  */
-router.get(
-  "/:id/responses",
-  requireAuth,
-  getRequestResponses
-);
+router.get("/:id/responses", requireAuth, getRequestResponses);
 
 /**
  * PATCH /api/requests/:id/responses/:responseId
@@ -197,7 +189,7 @@ router.patch(
   "/:id/responses/:responseId",
   requireAuth,
   validate(updateResponseStatusSchema),
-  updateResponseStatus
+  updateResponseStatus,
 );
 
 /**
@@ -207,11 +199,7 @@ router.patch(
  * - Donor only (own response)
  * - Only allowed if status is "offered"
  */
-router.delete(
-  "/:id/responses/:responseId",
-  requireAuth,
-  retractResponse
-);
+router.delete("/:id/responses/:responseId", requireAuth, retractResponse);
 
 // ============================================================================
 // Export Router

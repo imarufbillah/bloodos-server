@@ -1,48 +1,15 @@
-/**
- * Contact Form Controller (Phase 5g)
- * Implements contact form submission endpoint
- * Requirements: 19.7-19.10
- */
-
 import type { Request, Response } from "express";
-import { HTTP_STATUS, createInternalError } from "../middleware/error.middleware.js";
+import {
+  HTTP_STATUS,
+  createInternalError,
+} from "../middleware/error.middleware.js";
 import type { SubmitContactFormInput } from "../validators/contact.validator.js";
 
-// ============================================================================
-// Email Configuration
-// ============================================================================
-
-/**
- * Platform admin email address for contact form submissions
- * In production, this should be configured via environment variable
- */
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@bloodos.app";
 
-// ============================================================================
-// Email Service (Placeholder)
-// ============================================================================
-
-/**
- * Send contact form email to platform admin (Req 19.10)
- * 
- * NOTE: This is a placeholder implementation that logs emails in development.
- * For production, integrate with a proper email service like:
- * - Nodemailer with SMTP
- * - SendGrid
- * - AWS SES
- * - Mailgun
- * 
- * To integrate a real email service:
- * 1. Install the email library: npm install nodemailer @types/nodemailer
- * 2. Add email credentials to .env file
- * 3. Replace this function with actual email sending logic
- * 4. Add proper error handling and retry logic
- * 
- * @param formData - Contact form submission data
- * @returns Promise that resolves when email is sent
- * @throws Error if email sending fails
- */
-async function sendContactEmail(formData: SubmitContactFormInput): Promise<void> {
+async function sendContactEmail(
+  formData: SubmitContactFormInput,
+): Promise<void> {
   const { name, email, subject, message } = formData;
 
   // Email content
@@ -101,7 +68,7 @@ Sent from BloodOS Contact Form
       </div>
       <div class="field">
         <div class="label">Message</div>
-        <div class="message-box">${message.replace(/\n/g, '<br>')}</div>
+        <div class="message-box">${message.replace(/\n/g, "<br>")}</div>
       </div>
     </div>
     <div class="footer">
@@ -122,62 +89,24 @@ Sent from BloodOS Contact Form
     console.log("\nText Content:");
     console.log(emailContent.text);
     console.log("\n===========================================\n");
-    
+
     // Simulate async email sending
     await new Promise((resolve) => setTimeout(resolve, 100));
     return;
   }
 
-  // Production email sending would go here
-  // Example with nodemailer:
-  /*
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || "587", 10),
-    secure: process.env.SMTP_SECURE === "true",
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASSWORD,
-    },
-  });
-
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || `"BloodOS" <${process.env.SMTP_USER}>`,
-    to: emailContent.to,
-    replyTo: emailContent.replyTo,
-    subject: emailContent.subject,
-    text: emailContent.text,
-    html: emailContent.html,
-  });
-  */
-
   // For now, throw an error in production to signal that email service needs configuration
   throw new Error(
-    "Email service not configured. Please set up nodemailer or another email service for production use."
+    "Email service not configured. Please set up nodemailer or another email service for production use.",
   );
 }
 
 // ============================================================================
 // Submit Contact Form (POST /api/contact)
 // ============================================================================
-
-/**
- * Submit contact form (Req 19.7-19.11)
- * - Public endpoint (no auth required)
- * - Validates form data via Zod middleware
- * - Sends email to platform admin (Req 19.10)
- * - Returns success message on completion
- * 
- * Edge cases:
- * - Validation failure → 400 with field errors (handled by validate middleware)
- * - Email delivery failure → 500 internal error
- * 
- * @param req - Express request with validated body
- * @param res - Express response
- */
 export async function submitContactForm(
   req: Request<{}, {}, SubmitContactFormInput>,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const formData = req.body;
 
@@ -186,7 +115,9 @@ export async function submitContactForm(
     await sendContactEmail(formData);
 
     // Log contact form submission (for audit/tracking)
-    console.log(`Contact form submitted by ${formData.name} (${formData.email})`);
+    console.log(
+      `Contact form submitted by ${formData.name} (${formData.email})`,
+    );
 
     // Return success response (Req 19.11)
     res.status(HTTP_STATUS.OK).json({
@@ -202,7 +133,7 @@ export async function submitContactForm(
       "Failed to send message. Please try again later or contact us directly via phone or social media.",
       {
         error: error instanceof Error ? error.message : "Unknown error",
-      }
+      },
     );
   }
 }

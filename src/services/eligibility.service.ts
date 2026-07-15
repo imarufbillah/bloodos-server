@@ -27,10 +27,7 @@ export interface EligibilityResult {
  * Input parameters for eligibility evaluation
  */
 export interface EligibilityCheckInput {
-  donor: Pick<
-    User,
-    "bloodGroup" | "lastDonationDate" | "isDonor"
-  > & {
+  donor: Pick<User, "bloodGroup" | "lastDonationDate" | "isDonor"> & {
     age?: number; // Age in years
     weight?: number; // Weight in kg
   };
@@ -46,7 +43,7 @@ export interface EligibilityCheckInput {
  * @returns EligibilityResult indicating eligibility status and reason if ineligible
  */
 export function evaluateEligibility(
-  input: EligibilityCheckInput
+  input: EligibilityCheckInput,
 ): EligibilityResult {
   const { donor, requestedBloodGroup } = input;
 
@@ -124,7 +121,7 @@ function calculateDaysSince(pastDate: Date): number {
  * @returns Number of days remaining in cooldown period
  */
 export function calculateCooldownDaysRemaining(
-  lastDonationDate: Date | null
+  lastDonationDate: Date | null,
 ): number {
   if (!lastDonationDate) {
     return 0;
@@ -144,7 +141,7 @@ export function calculateCooldownDaysRemaining(
  */
 export function getIneligibilityMessage(
   reason: IneligibilityReason,
-  daysRemaining?: number
+  daysRemaining?: number,
 ): string {
   switch (reason) {
     case "age_requirement":

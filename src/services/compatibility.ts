@@ -13,7 +13,7 @@ import { BloodGroup, BLOOD_COMPATIBILITY } from "../types/shared.js";
  */
 export function isBloodTypeCompatible(
   donorBloodGroup: BloodGroup,
-  recipientBloodGroup: BloodGroup
+  recipientBloodGroup: BloodGroup,
 ): boolean {
   const compatibleDonors = BLOOD_COMPATIBILITY[recipientBloodGroup];
   return compatibleDonors.includes(donorBloodGroup);
@@ -25,7 +25,7 @@ export function isBloodTypeCompatible(
  * @returns Array of compatible donor blood groups
  */
 export function getCompatibleDonors(
-  recipientBloodGroup: BloodGroup
+  recipientBloodGroup: BloodGroup,
 ): BloodGroup[] {
   return BLOOD_COMPATIBILITY[recipientBloodGroup];
 }
@@ -36,7 +36,7 @@ export function getCompatibleDonors(
  * @returns Array of compatible recipient blood groups
  */
 export function getCompatibleRecipients(
-  donorBloodGroup: BloodGroup
+  donorBloodGroup: BloodGroup,
 ): BloodGroup[] {
   const recipients: BloodGroup[] = [];
 

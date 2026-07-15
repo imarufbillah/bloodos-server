@@ -2,11 +2,15 @@ import { createApp } from "./app.js";
 import { config } from "./config/env.js";
 import { connectDB, closeDB } from "./config/db.js";
 import { createIndexes } from "./db/indexes.js";
-import { closeRedisConnection, isRedisReady, getRedisStatus } from "./config/redis.js";
+import {
+  closeRedisConnection,
+  isRedisReady,
+  getRedisStatus,
+} from "./config/redis.js";
 
 /**
  * Start the server
- * 
+ *
  * Process:
  * 1. Connect to MongoDB
  * 2. Initialize Redis (optional - server continues if Redis unavailable)
@@ -26,7 +30,9 @@ const startServer = async (): Promise<void> => {
     if (isRedisReady()) {
       console.log("✅ Redis cache layer ready");
     } else {
-      console.warn(`⚠️  Redis status: ${redisStatus} (server will continue without cache)`);
+      console.warn(
+        `⚠️  Redis status: ${redisStatus} (server will continue without cache)`,
+      );
     }
 
     // Create indexes (Req 8 - must run before accepting traffic)
@@ -45,8 +51,8 @@ const startServer = async (): Promise<void> => {
 ║                                                            ║
 ║   Environment: ${config.nodeEnv.padEnd(43)}║
 ║   Port:        ${config.port.toString().padEnd(43)}║
-║   Health:      http://localhost:${config.port}/health${' '.repeat(23)}║
-║   Cache:       ${(isRedisReady() ? 'Redis (enabled)' : 'Disabled').padEnd(43)}║
+║   Health:      http://localhost:${config.port}/health${" ".repeat(23)}║
+║   Cache:       ${(isRedisReady() ? "Redis (enabled)" : "Disabled").padEnd(43)}║
 ║                                                            ║
 ║   Ready to accept requests                                 ║
 ║                                                            ║
@@ -57,16 +63,16 @@ const startServer = async (): Promise<void> => {
     // Graceful shutdown handlers
     const gracefulShutdown = async (signal: string) => {
       console.log(`\n⚠️  ${signal} received, shutting down gracefully...`);
-      
+
       server.close(async () => {
         console.log("🔌 HTTP server closed");
-        
+
         // Close Redis connection
         await closeRedisConnection();
-        
+
         // Close database connection
         await closeDB();
-        
+
         console.log("👋 Shutdown complete");
         process.exit(0);
       });
@@ -95,7 +101,6 @@ const startServer = async (): Promise<void> => {
       console.error("❌ Uncaught Exception:", error);
       gracefulShutdown("UNCAUGHT_EXCEPTION");
     });
-
   } catch (error) {
     console.error("❌ Failed to start server:", error);
     process.exit(1);

@@ -1,12 +1,3 @@
-/**
- * Notifications Controller (Phase 5d)
- * Handles notification listing and mark-read functionality
- * 
- * Endpoints:
- * - GET /api/notifications - List user's notifications (Req 5, 9.13)
- * - PATCH /api/notifications/:id/read - Mark notification as read
- */
-
 import type { Response } from "express";
 import { ObjectId } from "mongodb";
 import type { AuthenticatedRequest } from "../middleware/auth.middleware.js";
@@ -18,24 +9,9 @@ import {
 } from "../middleware/error.middleware.js";
 import type { Notification } from "../types/models/Notification.js";
 
-/**
- * GET /api/notifications
- * List all notifications for the authenticated user (Req 5, 9.13)
- * 
- * Authentication required
- * Filtered to userId === sessionUser.id (ownership enforcement)
- * Sorted by createdAt descending (newest first)
- * Uses index: { userId: 1, createdAt: -1 } from Phase 1b
- * 
- * Query params:
- * - page: Page number (default: 1)
- * - limit: Items per page (default: 20, max: 100)
- * 
- * @returns PaginatedResponse<Notification>
- */
 export const listNotifications = async (
   req: AuthenticatedRequest,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   const userId = new ObjectId(req.sessionUser.id);
 
@@ -75,26 +51,15 @@ export const listNotifications = async (
     notifications,
     page,
     limit,
-    totalCount
+    totalCount,
   );
 
   res.json(response);
 };
 
-/**
- * PATCH /api/notifications/:id/read
- * Mark a notification as read
- * 
- * Authentication required
- * Ownership enforced: notification.userId must equal sessionUser.id
- * 
- * Sets isRead: true on the specified notification
- * 
- * @returns Updated notification
- */
 export const markNotificationRead = async (
   req: AuthenticatedRequest,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   const notificationIdString = req.params.id;
   const userId = new ObjectId(req.sessionUser.id);
@@ -125,7 +90,7 @@ export const markNotificationRead = async (
   // Enforce ownership: notification.userId must equal sessionUser.id
   if (!notification.userId.equals(userId)) {
     throw createForbiddenError(
-      "You do not have permission to modify this notification"
+      "You do not have permission to modify this notification",
     );
   }
 
@@ -133,7 +98,7 @@ export const markNotificationRead = async (
   const result = await notificationsCollection.findOneAndUpdate(
     { _id: notificationId },
     { $set: { isRead: true } },
-    { returnDocument: "after" }
+    { returnDocument: "after" },
   );
 
   if (!result) {
@@ -147,33 +112,22 @@ export const markNotificationRead = async (
   });
 };
 
-/**
- * PATCH /api/notifications/read-all
- * Mark all user's notifications as read
- * 
- * Authentication required
- * Bulk update all notifications for the authenticated user
- * 
- * Sets isRead: true on all user's unread notifications
- * 
- * @returns Count of notifications updated
- */
 export const markAllNotificationsRead = async (
   req: AuthenticatedRequest,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   const userId = new ObjectId(req.sessionUser.id);
   const notificationsCollection = getNotificationsCollection();
 
   // Update all unread notifications for this user
   const result = await notificationsCollection.updateMany(
-    { 
-      userId, 
-      isRead: false 
+    {
+      userId,
+      isRead: false,
     },
-    { 
-      $set: { isRead: true } 
-    }
+    {
+      $set: { isRead: true },
+    },
   );
 
   res.json({

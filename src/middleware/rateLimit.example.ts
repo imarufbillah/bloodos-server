@@ -1,6 +1,6 @@
 /**
  * Rate Limiting Usage Examples
- * 
+ *
  * This file demonstrates how to apply rate limiting middleware to routes.
  * Copy these patterns when implementing actual routes in Phase 5.
  */
@@ -22,7 +22,7 @@ const exampleRouter: Router = express.Router();
 
 /**
  * Login endpoint with rate limiting
- * 
+ *
  * - 5 requests per 15 minutes per IP
  * - Returns 429 with "rate_limit_exceeded" after limit
  */
@@ -39,12 +39,12 @@ exampleRouter.post(
       success: true,
       message: "Login successful",
     });
-  })
+  }),
 );
 
 /**
  * Register endpoint with rate limiting
- * 
+ *
  * - 5 requests per 15 minutes per IP
  * - Prevents registration spam and brute-force account creation
  */
@@ -61,7 +61,7 @@ exampleRouter.post(
       success: true,
       message: "Registration successful",
     });
-  })
+  }),
 );
 
 // ============================================================================
@@ -70,7 +70,7 @@ exampleRouter.post(
 
 /**
  * Contact form endpoint with rate limiting
- * 
+ *
  * - 3 requests per 15 minutes per IP
  * - Prevents spam submissions
  */
@@ -86,7 +86,7 @@ exampleRouter.post(
       success: true,
       message: "Message sent successfully",
     });
-  })
+  }),
 );
 
 // ============================================================================
@@ -95,7 +95,7 @@ exampleRouter.post(
 
 /**
  * Apply general rate limiting to all routes in this router
- * 
+ *
  * - 100 requests per minute per IP
  * - Prevents abuse of any endpoint
  */
@@ -118,7 +118,7 @@ protectedRouter.post("/protected/action", (req: Request, res: Response) => {
 
 /**
  * Create a custom rate limiter for specific endpoint
- * 
+ *
  * Example: File upload endpoint with tighter limits
  * - 2 requests per 5 minutes per IP
  */
@@ -130,7 +130,7 @@ exampleRouter.post(
   asyncHandler(async (req: Request, res: Response) => {
     // ... handle file upload ...
     res.json({ success: true });
-  })
+  }),
 );
 
 // ============================================================================
@@ -139,7 +139,7 @@ exampleRouter.post(
 
 /**
  * Apply multiple rate limiters for layered protection
- * 
+ *
  * - First: General API limiter (100/min)
  * - Then: Specific auth limiter (5/15min)
  */
@@ -150,7 +150,7 @@ exampleRouter.post(
   asyncHandler(async (req: Request, res: Response) => {
     // ... handle password reset ...
     res.json({ success: true });
-  })
+  }),
 );
 
 // ============================================================================
@@ -159,7 +159,7 @@ exampleRouter.post(
 
 /**
  * Apply different rate limits based on user authentication
- * 
+ *
  * Pattern: Authenticated users get higher limits
  */
 
@@ -184,7 +184,7 @@ exampleRouter.post(
   },
   asyncHandler(async (req: Request, res: Response) => {
     res.json({ success: true });
-  })
+  }),
 );
 
 // ============================================================================
@@ -201,14 +201,14 @@ import { HTTP_STATUS } from "./error.middleware.js";
 const userRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 100,
-  
+
   // Use user ID from request instead of IP
   keyGenerator: (req: Request) => {
     // Assuming user ID is in req.user after authentication
     const userId = (req as any).user?.id;
     return userId || req.ip || "anonymous";
   },
-  
+
   handler: (req: Request, res: Response) => {
     res.status(HTTP_STATUS.TOO_MANY_REQUESTS).json({
       code: "rate_limit_exceeded",
@@ -223,7 +223,7 @@ exampleRouter.get(
   userRateLimiter, // Per-user rate limit
   asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: "User dashboard data" });
-  })
+  }),
 );
 
 // ============================================================================
@@ -232,17 +232,17 @@ exampleRouter.get(
 
 /**
  * HOW TO USE IN app.ts:
- * 
+ *
  * import { authRateLimiter, contactFormRateLimiter } from './middleware/rateLimit.middleware.js';
  * import authRouter from './routes/auth.routes.js';
  * import contactRouter from './routes/contact.routes.js';
- * 
+ *
  * // Option 1: Apply at route level
  * app.post('/api/auth/login', authRateLimiter, authController.login);
- * 
+ *
  * // Option 2: Apply in the route file itself (recommended)
  * // See examples above
- * 
+ *
  * // Option 3: Apply to entire router
  * app.use('/api/auth', authRateLimiter, authRouter);
  */

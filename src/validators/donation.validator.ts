@@ -33,7 +33,7 @@ export const verifyDonationSchema = z.object({
       .string()
       .regex(
         /^[0-9a-fA-F]{24}$/,
-        "Invalid donation ID format. Must be a valid MongoDB ObjectId."
+        "Invalid donation ID format. Must be a valid MongoDB ObjectId.",
       ),
   }),
 });

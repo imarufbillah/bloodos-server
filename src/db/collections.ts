@@ -62,9 +62,12 @@ export const getNotificationsCollection = (): Collection<Notification> => {
 /**
  * Get typed collection for Contact Audit Logs
  */
-export const getContactAuditLogsCollection = (): Collection<ContactAuditLog> => {
-  return getDB().collection<ContactAuditLog>(COLLECTION_NAMES.CONTACT_AUDIT_LOGS);
-};
+export const getContactAuditLogsCollection =
+  (): Collection<ContactAuditLog> => {
+    return getDB().collection<ContactAuditLog>(
+      COLLECTION_NAMES.CONTACT_AUDIT_LOGS,
+    );
+  };
 
 /**
  * Get typed collection for Admin Action Logs

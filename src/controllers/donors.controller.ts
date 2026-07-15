@@ -1,16 +1,10 @@
-/**
- * Donors Controller (Phase 5c)
- * Handles donor directory listing and contact information requests
- * 
- * Endpoints:
- * - GET /api/donors - List donors with filtering and pagination (Req 17.3-17.5)
- * - POST /api/donors/:id/request-contact - Request donor contact info (Req 4.5-4.7, 9.9)
- */
-
 import type { Response, Request } from "express";
 import { ObjectId } from "mongodb";
 import type { AuthenticatedRequest } from "../middleware/auth.middleware.js";
-import { getUsersCollection, getContactAuditLogsCollection } from "../db/collections.js";
+import {
+  getUsersCollection,
+  getContactAuditLogsCollection,
+} from "../db/collections.js";
 import { maskPhone } from "../utils/maskPhone.js";
 import { buildPaginatedResponse, calculateSkip } from "../utils/pagination.js";
 import {
@@ -18,39 +12,29 @@ import {
   createInternalError,
 } from "../middleware/error.middleware.js";
 import { notifyContactInfoRequested } from "../services/notification.service.js";
-import type { ListDonorsQuery, RequestContactParams } from "../validators/donor.validator.js";
+import type {
+  ListDonorsQuery,
+  RequestContactParams,
+} from "../validators/donor.validator.js";
 import type { User } from "../types/models/UserExtension.js";
 import type { ContactAuditLog } from "../types/models/ContactAuditLog.js";
 
-/**
- * GET /api/donors
- * List all donors with optional filtering and pagination (Req 17.3-17.5)
- * 
- * Public endpoint - no authentication required
- * Only returns users with isDonor: true (Req 17.4)
- * Phone numbers are always masked in list view (Req 17.5)
- * 
- * Query params:
- * - bloodGroup: Filter by blood group
- * - district: Filter by district
- * - page: Page number (default: 1)
- * - limit: Items per page (default: 20, max: 100)
- * 
- * @returns PaginatedResponse<Donor>
- */
 export const listDonors = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   // Manual query param extraction and validation
   const bloodGroupParam = req.query.bloodGroup as string | undefined;
   const districtParam = req.query.district as string | undefined;
   const pageParam = req.query.page ? parseInt(req.query.page as string, 10) : 1;
-  const limitParam = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+  const limitParam = req.query.limit
+    ? parseInt(req.query.limit as string, 10)
+    : 20;
 
   // Validate page and limit
   const page = isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
-  const limit = isNaN(limitParam) || limitParam < 1 || limitParam > 100 ? 20 : limitParam;
+  const limit =
+    isNaN(limitParam) || limitParam < 1 || limitParam > 100 ? 20 : limitParam;
 
   const bloodGroup = bloodGroupParam;
   const district = districtParam;
@@ -94,37 +78,27 @@ export const listDonors = async (
   }));
 
   // Build paginated response
-  const response = buildPaginatedResponse(maskedDonors, page, limit, totalCount);
+  const response = buildPaginatedResponse(
+    maskedDonors,
+    page,
+    limit,
+    totalCount,
+  );
 
   res.json(response);
 };
 
-/**
- * POST /api/donors/:id/request-contact
- * Request a donor's full contact information (Req 4.5-4.7, 9.9)
- * 
- * Authentication required
- * 
- * This endpoint:
- * 1. Creates a ContactAuditLog entry (Req 4.5)
- * 2. Returns the full, unmasked contact info (Req 4.7)
- * 3. Notifies the donor that their contact was requested (Req 9.9)
- * 
- * Contact reveal is atomic: audit log must succeed before revealing info (Req 4.6)
- * 
- * @returns Full donor contact information (unmasked)
- */
 export const requestContact = async (
   req: AuthenticatedRequest,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   const donorIdString = req.params.id;
-  
+
   // Type guard - ensure it's a string
-  if (typeof donorIdString !== 'string') {
+  if (typeof donorIdString !== "string") {
     throw createNotFoundError("Donor", "invalid");
   }
-  
+
   const requestorId = new ObjectId(req.sessionUser.id);
   const requestorName = req.sessionUser.name || "A user";
 
@@ -144,7 +118,7 @@ export const requestContact = async (
   }
 
   // Extract IP address for audit log
-  const ipAddress = 
+  const ipAddress =
     (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
     req.socket.remoteAddress ||
     "unknown";
@@ -168,7 +142,7 @@ export const requestContact = async (
     // If audit log fails, do NOT reveal contact info (Req 4.6)
     console.error("Failed to create contact audit log:", error);
     throw createInternalError(
-      "Failed to log contact request. Contact information not revealed for security."
+      "Failed to log contact request. Contact information not revealed for security.",
     );
   }
 

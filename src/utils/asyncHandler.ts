@@ -7,21 +7,21 @@ import type { Request, Response, NextFunction } from "express";
 export type AsyncRequestHandler = (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => Promise<void | Response>;
 
 /**
  * Async Handler Wrapper
- * 
+ *
  * Wraps async Express route handlers to automatically catch errors
  * and forward them to the error middleware.
- * 
+ *
  * Note: Express 5.2.1 has built-in async error handling, but this
  * wrapper provides explicit error forwarding and better type safety.
- * 
+ *
  * @param fn - Async route handler function
  * @returns Express middleware function
- * 
+ *
  * @example
  * ```typescript
  * router.get('/users', asyncHandler(async (req, res) => {
