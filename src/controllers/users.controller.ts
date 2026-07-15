@@ -79,6 +79,7 @@ export async function getCurrentUser(
       : null,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
+    image: user.image || null,
   };
 
   res.status(HTTP_STATUS.OK).json(userDto);
@@ -148,6 +149,7 @@ export async function updateUserProfile(
       : null,
     createdAt: result.createdAt.toISOString(),
     updatedAt: result.updatedAt.toISOString(),
+    image: result.image || null,
   };
 
   res.status(HTTP_STATUS.OK).json(userDto);

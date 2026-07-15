@@ -13,6 +13,7 @@ const envSchema = z.object({
   MONGODB_URI: z.string().url("MONGODB_URI must be a valid URL"),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
   BETTER_AUTH_URL: z.string().url().optional(),
+  IMGBB_API_KEY: z.string().min(1, "IMGBB_API_KEY is required for avatar uploads"),
 });
 
 /**
@@ -53,5 +54,8 @@ export const config = {
   },
   auth: {
     betterAuthUrl: env.BETTER_AUTH_URL || env.FRONTEND_URL,
+  },
+  imgbb: {
+    apiKey: env.IMGBB_API_KEY,
   },
 } as const;

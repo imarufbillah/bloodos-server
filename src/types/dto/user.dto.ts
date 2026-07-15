@@ -21,6 +21,7 @@ export interface UserDto {
   lastDonationDate: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
+  image?: string | null;
 }
 
 // ============================================================================

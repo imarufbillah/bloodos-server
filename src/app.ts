@@ -1,4 +1,6 @@
 import express, { type Application } from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 import cors from "cors";
 import { config } from "./config/env.js";
 import {
@@ -14,6 +16,10 @@ import contactRouter from "./routes/contact.routes.js";
 import usersRouter from "./routes/users.routes.js";
 import donationsRouter from "./routes/donations.routes.js";
 import statsRouter from "./routes/stats.routes.js";
+import uploadRouter from "./routes/upload.routes.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Create and configure Express application
@@ -34,6 +40,9 @@ export const createApp = (): Application => {
       credentials: true,
     })
   );
+
+  // Upload Routes (avatar) — MUST be before body parsers so multer handles multipart
+  app.use("/api/users", uploadRouter);
 
   // Body parsing middleware
   app.use(express.json({ limit: "10mb" }));
@@ -89,6 +98,9 @@ export const createApp = (): Application => {
 
   // Users Routes (Phase 5h)
   app.use("/api/users", usersRouter);
+
+  // Static file serving for uploads
+  app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
   // Donations Routes (Phase 5h)
   app.use("/api/donations", donationsRouter);
