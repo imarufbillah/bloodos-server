@@ -1,57 +1,70 @@
 import { Redis } from "ioredis";
 import { logger } from "../utils/logger.js";
 
-const redis = new Redis({
-  host: process.env.REDIS_HOST || "localhost",
-  port: Number(process.env.REDIS_PORT) || 6379,
-  password: process.env.REDIS_PASSWORD || undefined,
-  db: Number(process.env.REDIS_DB) || 0,
-  retryStrategy: (times: number) => {
-    const delay = Math.min(times * 50, 2000);
-    return delay;
-  },
-  connectTimeout: 10000,
-  maxRetriesPerRequest: 3,
-  enableOfflineQueue: true,
-  lazyConnect: false,
-});
+const REDIS_HOST = process.env.REDIS_HOST;
+const REDIS_ENABLED = REDIS_HOST && REDIS_HOST !== "localhost";
 
-redis.on("connect", () => {
-  logger.debug("Redis connecting...");
-});
+let redis: Redis | null = null;
 
-redis.on("ready", () => {
-  logger.info("Redis connected and ready");
-});
+function createRedisClient(): Redis {
+  const client = new Redis({
+    host: REDIS_HOST,
+    port: Number(process.env.REDIS_PORT) || 6379,
+    password: process.env.REDIS_PASSWORD || undefined,
+    db: Number(process.env.REDIS_DB) || 0,
+    retryStrategy: (times: number) => {
+      if (times > 10) {
+        logger.warn("Redis: max retries reached, giving up");
+        return null;
+      }
+      const delay = Math.min(times * 100, 3000);
+      return delay;
+    },
+    connectTimeout: 5000,
+    maxRetriesPerRequest: 3,
+    enableOfflineQueue: false,
+    lazyConnect: true,
+  });
 
-redis.on("error", (err: Error) => {
-  logger.error("Redis connection error", { message: err.message });
-});
+  client.on("connect", () => {
+    logger.info("Redis connected");
+  });
 
-redis.on("close", () => {
-  logger.debug("Redis connection closed");
-});
+  client.on("ready", () => {
+    logger.info("Redis ready");
+  });
 
-redis.on("reconnecting", () => {
-  logger.debug("Redis reconnecting...");
-});
+  client.on("error", (err: Error) => {
+    logger.warn("Redis connection error", { message: err.message });
+  });
+
+  return client;
+}
 
 export async function closeRedisConnection(): Promise<void> {
+  if (!redis) return;
   try {
     await redis.quit();
-    logger.info("Redis connection closed gracefully");
-  } catch (error) {
-    logger.error("Error closing Redis connection", { error });
+    logger.info("Redis connection closed");
+  } catch {
     redis.disconnect();
   }
 }
 
 export function isRedisReady(): boolean {
-  return redis.status === "ready";
+  return redis?.status === "ready";
 }
 
 export function getRedisStatus(): string {
-  return redis.status;
+  if (!REDIS_ENABLED) return "disabled (no REDIS_HOST)";
+  return redis?.status ?? "not initialized";
 }
 
-export default redis;
+export function getRedisClient(): Redis | null {
+  if (!REDIS_ENABLED) return null;
+  if (!redis) {
+    redis = createRedisClient();
+    redis.connect().catch(() => {});
+  }
+  return redis;
+}

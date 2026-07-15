@@ -1,18 +1,14 @@
-import redis, { isRedisReady } from "../config/redis.js";
+import { getRedisClient, isRedisReady } from "../config/redis.js";
 import { logger } from "../utils/logger.js";
 
 export class CacheService {
   static async get<T>(key: string): Promise<T | null> {
-    if (!isRedisReady()) {
-      return null;
-    }
+    const redis = getRedisClient();
+    if (!redis) return null;
 
     try {
       const cached = await redis.get(key);
-      if (!cached) {
-        return null;
-      }
-
+      if (!cached) return null;
       return JSON.parse(cached) as T;
     } catch (error) {
       logger.error("Cache get error", { key, error });
@@ -21,22 +17,19 @@ export class CacheService {
   }
 
   static async set(key: string, value: any, ttl: number = 120): Promise<void> {
-    if (!isRedisReady()) {
-      return;
-    }
+    const redis = getRedisClient();
+    if (!redis) return;
 
     try {
-      const serialized = JSON.stringify(value);
-      await redis.setex(key, ttl, serialized);
+      await redis.setex(key, ttl, JSON.stringify(value));
     } catch (error) {
       logger.error("Cache set error", { key, error });
     }
   }
 
   static async delete(key: string): Promise<void> {
-    if (!isRedisReady()) {
-      return;
-    }
+    const redis = getRedisClient();
+    if (!redis) return;
 
     try {
       await redis.del(key);
@@ -46,9 +39,8 @@ export class CacheService {
   }
 
   static async invalidate(pattern: string): Promise<void> {
-    if (!isRedisReady()) {
-      return;
-    }
+    const redis = getRedisClient();
+    if (!redis) return;
 
     try {
       const keys: string[] = [];
@@ -76,21 +68,13 @@ export class CacheService {
   }
 
   static async invalidateMultiple(patterns: string[]): Promise<void> {
-    if (!isRedisReady()) {
-      return;
-    }
-
-    try {
-      await Promise.all(patterns.map((pattern) => this.invalidate(pattern)));
-    } catch (error) {
-      logger.error("Cache invalidateMultiple error", { error });
-    }
+    if (!isRedisReady()) return;
+    await Promise.all(patterns.map((pattern) => this.invalidate(pattern)));
   }
 
   static async clear(): Promise<void> {
-    if (!isRedisReady()) {
-      return;
-    }
+    const redis = getRedisClient();
+    if (!redis) return;
 
     try {
       await redis.flushdb();
@@ -101,13 +85,11 @@ export class CacheService {
   }
 
   static async exists(key: string): Promise<boolean> {
-    if (!isRedisReady()) {
-      return false;
-    }
+    const redis = getRedisClient();
+    if (!redis) return false;
 
     try {
-      const result = await redis.exists(key);
-      return result === 1;
+      return (await redis.exists(key)) === 1;
     } catch (error) {
       logger.error("Cache exists error", { key, error });
       return false;
@@ -115,9 +97,8 @@ export class CacheService {
   }
 
   static async ttl(key: string): Promise<number> {
-    if (!isRedisReady()) {
-      return -2;
-    }
+    const redis = getRedisClient();
+    if (!redis) return -2;
 
     try {
       return await redis.ttl(key);
@@ -131,18 +112,14 @@ export class CacheService {
     entries: Array<{ key: string; value: any }>,
     ttl: number = 120,
   ): Promise<void> {
-    if (!isRedisReady()) {
-      return;
-    }
+    const redis = getRedisClient();
+    if (!redis) return;
 
     try {
       const pipeline = redis.pipeline();
-
       entries.forEach(({ key, value }) => {
-        const serialized = JSON.stringify(value);
-        pipeline.setex(key, ttl, serialized);
+        pipeline.setex(key, ttl, JSON.stringify(value));
       });
-
       await pipeline.exec();
     } catch (error) {
       logger.error("Cache setMany error", { error });
@@ -150,42 +127,29 @@ export class CacheService {
   }
 
   static async getMany<T>(keys: string[]): Promise<Record<string, T | null>> {
-    if (!isRedisReady()) {
-      return keys.reduce(
-        (acc, key) => {
-          acc[key] = null;
-          return acc;
-        },
-        {} as Record<string, T | null>,
-      );
-    }
+    const redis = getRedisClient();
+    const nullResult = keys.reduce(
+      (acc, key) => ({ ...acc, [key]: null }),
+      {} as Record<string, T | null>,
+    );
+    if (!redis) return nullResult;
 
     try {
       const values = await redis.mget(...keys);
-
       const result: Record<string, T | null> = {};
-      keys.forEach((key, index) => {
-        const value = values[index];
-        result[key] = value ? JSON.parse(value) : null;
+      keys.forEach((key, i) => {
+        result[key] = values[i] ? JSON.parse(values[i]!) : null;
       });
-
       return result;
     } catch (error) {
       logger.error("Cache getMany error", { error });
-      return keys.reduce(
-        (acc, key) => {
-          acc[key] = null;
-          return acc;
-        },
-        {} as Record<string, T | null>,
-      );
+      return nullResult;
     }
   }
 
   static async increment(key: string, amount: number = 1): Promise<number> {
-    if (!isRedisReady()) {
-      return 0;
-    }
+    const redis = getRedisClient();
+    if (!redis) return 0;
 
     try {
       return await redis.incrby(key, amount);
@@ -201,15 +165,9 @@ export class CacheService {
     keyCount: number;
     usedMemory: string | null;
   }> {
-    const connected = isRedisReady();
-
-    if (!connected) {
-      return {
-        connected: false,
-        status: "disconnected",
-        keyCount: 0,
-        usedMemory: null,
-      };
+    const redis = getRedisClient();
+    if (!redis) {
+      return { connected: false, status: "disconnected", keyCount: 0, usedMemory: null };
     }
 
     try {
