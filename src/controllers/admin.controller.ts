@@ -19,6 +19,7 @@ import {
 import type { AuthenticatedRequest } from "../middleware/auth.middleware.js";
 import { asyncHandler, createNotFoundError } from "../middleware/error.middleware.js";
 import { logAdminAction } from "../services/adminActionLog.service.js";
+import { CacheService, CacheKeys } from "../services/cache.service.js";
 import {
   RequestStatus,
   Urgency,
@@ -69,118 +70,123 @@ export const getAdminStats = asyncHandler(
     const thirtyDaysAgo = new Date(now);
     thirtyDaysAgo.setDate(now.getDate() - 30);
 
-    // Run all queries in parallel for efficiency
-    const [
-      totalRequests,
-      activeRequests,
-      fulfilledRequests,
-      totalDonors,
-      donationsThisMonth,
-      requestsByBloodGroupData,
-      requestsByDistrictData,
-      requestTrendData,
-    ] = await Promise.all([
-      // Total requests (all time)
-      requestsCollection.countDocuments({}),
-
-      // Active requests (open + in_progress)
-      requestsCollection.countDocuments({
-        status: { $in: [RequestStatus.OPEN, RequestStatus.IN_PROGRESS] },
-      }),
-
-      // Fulfilled requests (all time)
-      requestsCollection.countDocuments({
-        status: RequestStatus.FULFILLED,
-      }),
-
-      // Total donors (isDonor = true)
-      usersCollection.countDocuments({
-        isDonor: true,
-      }),
-
-      // Donations this month
-      donationsCollection.countDocuments({
-        donationDate: { $gte: startOfMonth },
-      }),
-
-      // Requests grouped by blood group (for PieChart - Req 18.5)
-      requestsCollection
-        .aggregate<{ _id: BloodGroup; count: number }>([
-          {
-            $group: {
-              _id: "$bloodGroup",
-              count: { $sum: 1 },
+    // Use single aggregation for requests data (performance optimization)
+    const requestsStats = await requestsCollection.aggregate([
+      {
+        $facet: {
+          // Total requests count
+          totalRequests: [
+            { $count: 'count' }
+          ],
+          
+          // Active requests (open + in_progress)
+          activeRequests: [
+            {
+              $match: {
+                status: { $in: [RequestStatus.OPEN, RequestStatus.IN_PROGRESS] }
+              }
             },
-          },
-          {
-            $sort: { count: -1 },
-          },
-        ])
-        .toArray(),
-
-      // Requests grouped by district (for BarChart - Req 18.6)
-      requestsCollection
-        .aggregate<{ _id: District; count: number }>([
-          {
-            $group: {
-              _id: "$district",
-              count: { $sum: 1 },
+            { $count: 'count' }
+          ],
+          
+          // Fulfilled requests
+          fulfilledRequests: [
+            {
+              $match: {
+                status: RequestStatus.FULFILLED
+              }
             },
-          },
-          {
-            $sort: { count: -1 },
-          },
-        ])
-        .toArray(),
-
-      // Request trend over last 30 days (for LineChart - Req 18.7)
-      requestsCollection
-        .aggregate<{ _id: string; count: number }>([
-          {
-            $match: {
-              createdAt: { $gte: thirtyDaysAgo },
+            { $count: 'count' }
+          ],
+          
+          // Requests by blood group
+          requestsByBloodGroup: [
+            {
+              $group: {
+                _id: '$bloodGroup',
+                count: { $sum: 1 }
+              }
             },
-          },
-          {
-            $group: {
-              _id: {
-                $dateToString: {
-                  format: "%Y-%m-%d",
-                  date: "$createdAt",
+            { $sort: { count: -1 } },
+            {
+              $project: {
+                bloodGroup: '$_id',
+                count: 1,
+                _id: 0
+              }
+            }
+          ],
+          
+          // Requests by district
+          requestsByDistrict: [
+            {
+              $group: {
+                _id: '$district',
+                count: { $sum: 1 }
+              }
+            },
+            { $sort: { count: -1 } },
+            {
+              $project: {
+                district: '$_id',
+                count: 1,
+                _id: 0
+              }
+            }
+          ],
+          
+          // Request trend over last 30 days
+          requestTrend: [
+            {
+              $match: {
+                createdAt: { $gte: thirtyDaysAgo }
+              }
+            },
+            {
+              $group: {
+                _id: {
+                  $dateToString: {
+                    format: '%Y-%m-%d',
+                    date: '$createdAt'
+                  }
                 },
-              },
-              count: { $sum: 1 },
+                count: { $sum: 1 }
+              }
             },
-          },
-          {
-            $sort: { _id: 1 },
-          },
-        ])
-        .toArray(),
+            { $sort: { _id: 1 } },
+            {
+              $project: {
+                date: '$_id',
+                count: 1,
+                _id: 0
+              }
+            }
+          ]
+        }
+      }
+    ]).toArray();
+
+    // Get donor and donation counts in parallel
+    const [totalDonors, donationsThisMonth] = await Promise.all([
+      usersCollection.countDocuments({ isDonor: true }),
+      donationsCollection.countDocuments({ donationDate: { $gte: startOfMonth } })
     ]);
 
-    // Transform blood group data to match DTO
-    const requestsByBloodGroup: BloodGroupStat[] = requestsByBloodGroupData.map(
-      (item) => ({
-        bloodGroup: item._id,
-        count: item.count,
-      })
-    );
-
-    // Transform district data to match DTO
-    const requestsByDistrict: DistrictStat[] = requestsByDistrictData.map(
-      (item) => ({
-        district: item._id,
-        count: item.count,
-      })
-    );
-
-    // Transform trend data and fill gaps (ensure all 30 days present)
+    // Extract results from faceted aggregation
+    const statsData = requestsStats[0];
+    if (!statsData) {
+      throw new Error('Failed to fetch request statistics');
+    }
+    
+    const totalRequests = statsData.totalRequests[0]?.count || 0;
+    const activeRequests = statsData.activeRequests[0]?.count || 0;
+    const fulfilledRequests = statsData.fulfilledRequests[0]?.count || 0;
+    const requestsByBloodGroup: BloodGroupStat[] = statsData.requestsByBloodGroup;
+    const requestsByDistrict: DistrictStat[] = statsData.requestsByDistrict;
+    
+    // Fill gaps in trend data to ensure all 30 days present
     const requestTrend: TrendDataPoint[] = fillTrendGaps(
-      requestTrendData.map((item) => ({
-        date: item._id,
-        count: item.count,
-      })),
+      statsData.requestTrend,
       thirtyDaysAgo,
       now
     );
@@ -516,6 +522,13 @@ export const approveRequest = asyncHandler(
     // Fetch updated request
     const updatedRequest = await requestsCollection.findOne({ _id: requestId });
 
+    // Invalidate relevant caches
+    await CacheService.invalidateMultiple([
+      CacheKeys.endpointPattern('/api/requests'),
+      CacheKeys.endpointPattern('/api/admin/stats'),
+      CacheKeys.endpointPattern('/api/admin/requests'),
+    ]);
+
     res.status(200).json({
       message: "Blood request approved successfully",
       request: {
@@ -615,6 +628,13 @@ export const rejectRequest = asyncHandler(
 
     // Fetch updated request
     const updatedRequest = await requestsCollection.findOne({ _id: requestId });
+
+    // Invalidate relevant caches
+    await CacheService.invalidateMultiple([
+      CacheKeys.endpointPattern('/api/requests'),
+      CacheKeys.endpointPattern('/api/admin/stats'),
+      CacheKeys.endpointPattern('/api/admin/requests'),
+    ]);
 
     res.status(200).json({
       message: "Blood request rejected successfully",
@@ -731,6 +751,12 @@ export const banUser = asyncHandler(
 
     // Fetch updated user
     const updatedUser = await usersCollection.findOne({ _id: userId });
+
+    // Invalidate relevant caches
+    await CacheService.invalidateMultiple([
+      CacheKeys.endpointPattern('/api/admin/users'),
+      CacheKeys.endpointPattern('/api/donors'), // If user is a donor
+    ]);
 
     res.status(200).json({
       message: "User banned successfully",
@@ -849,6 +875,12 @@ export const unbanUser = asyncHandler(
 
     // Fetch updated user
     const updatedUser = await usersCollection.findOne({ _id: userId });
+
+    // Invalidate relevant caches
+    await CacheService.invalidateMultiple([
+      CacheKeys.endpointPattern('/api/admin/users'),
+      CacheKeys.endpointPattern('/api/donors'), // If user is a donor
+    ]);
 
     res.status(200).json({
       message: "User unbanned successfully",
@@ -980,6 +1012,11 @@ export const changeUserRole = asyncHandler(
     // Fetch updated user
     const updatedUser = await usersCollection.findOne({ _id: userId });
 
+    // Invalidate relevant caches
+    await CacheService.invalidateMultiple([
+      CacheKeys.endpointPattern('/api/admin/users'),
+    ]);
+
     res.status(200).json({
       message: "User role changed successfully",
       user: {
@@ -1104,6 +1141,13 @@ export const verifyDonation = asyncHandler(
 
     // Fetch updated donation
     const updatedDonation = await donationsCollection.findOne({ _id: donationId });
+
+    // Invalidate relevant caches
+    await CacheService.invalidateMultiple([
+      CacheKeys.endpointPattern(`/api/users/me/donations:user:${donation.userId.toString()}`),
+      CacheKeys.endpointPattern(`/api/users/me/analytics:user:${donation.userId.toString()}`),
+      CacheKeys.endpointPattern('/api/admin/stats'),
+    ]);
 
     res.status(200).json({
       message: "Donation verified successfully",

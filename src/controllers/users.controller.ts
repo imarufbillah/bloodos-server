@@ -23,6 +23,7 @@ import {
   HTTP_STATUS,
 } from "../middleware/error.middleware.js";
 import { buildPaginatedResponse, calculateSkip } from "../utils/pagination.js";
+import { CacheService, CacheKeys } from "../services/cache.service.js";
 import type { UpdateProfileInput } from "../validators/user.validator.js";
 import type { CreateDonationInput } from "../validators/user.validator.js";
 import type { GetDonationsQuery, GetResponsesQuery } from "../validators/user.validator.js";
@@ -125,6 +126,12 @@ export async function updateUserProfile(
   if (!result) {
     throw createNotFoundError("User not found");
   }
+
+  // Invalidate user-specific caches
+  await CacheService.invalidateMultiple([
+    CacheKeys.endpointPattern(`/api/users/me:user:${sessionUser.id}`),
+    CacheKeys.endpointPattern('/api/donors'), // If donor status changed
+  ]);
 
   // Map to DTO
   const userDto: UserDto = {
@@ -262,6 +269,12 @@ export async function createDonation(
     );
   }
 
+  // Invalidate user-specific caches
+  await CacheService.invalidateMultiple([
+    CacheKeys.endpointPattern(`/api/users/me/donations:user:${sessionUser.id}`),
+    CacheKeys.endpointPattern(`/api/users/me/analytics:user:${sessionUser.id}`),
+  ]);
+
   // Map to DTO
   const donationDto: UserDonationHistoryDto = {
     _id: created._id.toString(),
@@ -276,6 +289,188 @@ export async function createDonation(
   };
 
   res.status(HTTP_STATUS.CREATED).json(donationDto);
+}
+
+// ============================================================================
+// Get User Analytics (GET /api/users/me/analytics)
+// ============================================================================
+
+/**
+ * Get comprehensive user analytics and statistics
+ * - Uses single aggregation query for optimal performance
+ * - Returns requests created, responses given, donations, fulfillment rates
+ * - Auth required
+ */
+export async function getUserAnalytics(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const sessionUser = req.sessionUser!;
+  const userId = new ObjectId(sessionUser.id);
+
+  try {
+    const requestsCollection = getBloodRequestsCollection();
+    const responsesCollection = getResponsesCollection();
+    const donationsCollection = getDonationsCollection();
+
+    // Single aggregation query for comprehensive stats
+    const analyticsResult = await requestsCollection.aggregate([
+      {
+        $facet: {
+          // Requests created by user with status breakdown
+          requestsCreated: [
+            { $match: { userId } },
+            {
+              $group: {
+                _id: '$status',
+                count: { $sum: 1 }
+              }
+            }
+          ],
+          
+          // Total requests count
+          totalRequests: [
+            { $match: { userId } },
+            { $count: 'total' }
+          ],
+          
+          // Responses received on user's requests
+          responsesReceived: [
+            { $match: { userId } },
+            {
+              $lookup: {
+                from: 'responses',
+                localField: '_id',
+                foreignField: 'requestId',
+                as: 'responses'
+              }
+            },
+            { $unwind: { path: '$responses', preserveNullAndEmptyArrays: false } },
+            { $count: 'total' }
+          ],
+          
+          // Activity timeline (last 6 months)
+          activityTimeline: [
+            {
+              $match: {
+                userId,
+                createdAt: {
+                  $gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000)
+                }
+              }
+            },
+            {
+              $group: {
+                _id: {
+                  month: { $month: '$createdAt' },
+                  year: { $year: '$createdAt' }
+                },
+                count: { $sum: 1 }
+              }
+            },
+            { $sort: { '_id.year': 1, '_id.month': 1 } },
+            {
+              $project: {
+                month: '$_id.month',
+                year: '$_id.year',
+                count: 1,
+                _id: 0
+              }
+            }
+          ]
+        }
+      }
+    ]).toArray();
+
+    // Get responses given by user as donor with separate aggregation
+    const responsesGivenResult = await responsesCollection.aggregate([
+      { $match: { userId } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]).toArray();
+
+    // Get total responses given
+    const totalResponsesGiven = await responsesCollection.countDocuments({ userId });
+
+    // Get verified donations count
+    const verifiedDonations = await donationsCollection.countDocuments({
+      userId,
+      verified: true
+    });
+
+    // Get total donations count
+    const totalDonations = await donationsCollection.countDocuments({ userId });
+
+    // Process the results
+    const analytics = analyticsResult[0];
+    if (!analytics) {
+      throw new Error('Failed to fetch analytics');
+    }
+    
+    // Calculate request status breakdown
+    const requestsByStatus: Record<string, number> = {};
+    analytics.requestsCreated.forEach((item: any) => {
+      requestsByStatus[item._id] = item.count;
+    });
+
+    // Calculate responses given by status
+    const responsesByStatus: Record<string, number> = {};
+    responsesGivenResult.forEach((item: any) => {
+      responsesByStatus[item._id] = item.count;
+    });
+
+    // Calculate fulfillment rate
+    const totalRequestsCount = analytics.totalRequests[0]?.total || 0;
+    const fulfilledCount = requestsByStatus['fulfilled'] || 0;
+    const fulfillmentRate = totalRequestsCount > 0
+      ? Math.round((fulfilledCount / totalRequestsCount) * 100)
+      : 0;
+
+    // Calculate success rate for responses
+    const completedResponses = responsesByStatus['completed'] || 0;
+    const responseSuccessRate = totalResponsesGiven > 0
+      ? Math.round((completedResponses / totalResponsesGiven) * 100)
+      : 0;
+
+    const responsesReceivedCount = analytics.responsesReceived[0]?.total || 0;
+
+    res.status(HTTP_STATUS.OK).json({
+      // Request statistics
+      totalRequests: totalRequestsCount,
+      requestsByStatus,
+      fulfillmentRate,
+      responsesReceived: responsesReceivedCount,
+
+      // Response statistics (as donor)
+      totalResponses: totalResponsesGiven,
+      responsesByStatus,
+      responseSuccessRate,
+
+      // Donation statistics
+      totalDonations,
+      verifiedDonations,
+      livesSaved: verifiedDonations, // Verified donations = lives saved
+
+      // Timeline data
+      activityTimeline: analytics.activityTimeline,
+
+      // Impact summary
+      impact: {
+        requestsCreated: totalRequestsCount,
+        requestsFulfilled: fulfilledCount,
+        responsesGiven: totalResponsesGiven,
+        donationsCompleted: completedResponses,
+        livesSaved: verifiedDonations
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching user analytics:", error);
+    throw error;
+  }
 }
 
 // ============================================================================

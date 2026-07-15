@@ -20,6 +20,7 @@ import { logAdminAction, extractChangedFields } from "../services/adminActionLog
 import { notifyNewMatchingRequest, notifyRequestStatusChange } from "../services/notification.service.js";
 import { maskPhone, shouldMaskPhone } from "../utils/maskPhone.js";
 import { buildPaginatedResponse, calculateSkip } from "../utils/pagination.js";
+import { CacheService, CacheKeys } from "../services/cache.service.js";
 import type {
   CreateBloodRequestInput,
   UpdateBloodRequestInput,
@@ -95,6 +96,13 @@ export async function createBloodRequest(
       console.error("Failed to notify eligible donors:", error);
       // Don't fail the request creation if notification fails
     });
+
+    // Invalidate relevant caches
+    await CacheService.invalidateMultiple([
+      CacheKeys.endpointPattern('/api/requests'),
+      CacheKeys.endpointPattern('/api/admin/stats'),
+      CacheKeys.endpointPattern('/api/users/me/analytics'),
+    ]);
 
     res.status(HTTP_STATUS.CREATED).json({
       _id: created._id.toString(),
@@ -206,15 +214,64 @@ export async function listBloodRequests(
     const collection = getBloodRequestsCollection();
     const skip = calculateSkip(page, limit);
 
-    // Execute query with pagination
-    const [requests, totalCount] = await Promise.all([
-      collection.find(filter).sort(sortOrder).skip(skip).limit(limit).toArray(),
-      collection.countDocuments(filter),
-    ]);
+    // Use aggregation pipeline for better performance
+    // This gets requests with response count in a single query
+    const pipeline: any[] = [
+      // Stage 1: Match filters
+      { $match: filter },
+      
+      // Stage 2: Lookup responses and count them
+      {
+        $lookup: {
+          from: 'responses',
+          localField: '_id',
+          foreignField: 'requestId',
+          as: 'responses'
+        }
+      },
+      
+      // Stage 3: Add response count field
+      {
+        $addFields: {
+          responseCount: { $size: '$responses' }
+        }
+      },
+      
+      // Stage 4: Remove the responses array (we only need the count)
+      {
+        $project: {
+          responses: 0
+        }
+      },
+      
+      // Stage 5: Sort
+      { $sort: sortOrder },
+      
+      // Stage 6: Facet for pagination and total count
+      {
+        $facet: {
+          data: [
+            { $skip: skip },
+            { $limit: limit }
+          ],
+          totalCount: [
+            { $count: 'count' }
+          ]
+        }
+      }
+    ];
+
+    const [result] = await collection.aggregate(pipeline).toArray();
+    if (!result) {
+      throw new Error('Failed to fetch requests');
+    }
+    
+    const requests = result.data || [];
+    const totalCount = result.totalCount[0]?.count || 0;
 
     // Check if auto-expiration should occur for any requests (Req 3.5)
     const now = new Date();
-    const requestsWithExpiration = requests.map((request) => {
+    const requestsWithExpiration = requests.map((request: any) => {
       const expirationCheck = requestStateMachine.checkAutoExpiration(request, now);
       if (expirationCheck.shouldExpire) {
         // Note: Actual expiration update would happen in a background job or on-demand
@@ -225,7 +282,7 @@ export async function listBloodRequests(
     });
 
     // Mask contact info for non-owners (Req 4.1-4.4)
-    const maskedRequests = requestsWithExpiration.map((request) => {
+    const maskedRequests = requestsWithExpiration.map((request: any) => {
       const isOwner = sessionUser && request.userId.toString() === sessionUser.id;
       const isAdmin = sessionUser?.role === "admin";
       const shouldMask = shouldMaskPhone(
@@ -248,6 +305,7 @@ export async function listBloodRequests(
         neededByDate: request.neededByDate.toISOString(),
         contactPhone: shouldMask ? maskPhone(request.contactPhone) : request.contactPhone,
         additionalNotes: request.additionalNotes,
+        responseCount: request.responseCount || 0,
         createdAt: request.createdAt.toISOString(),
         updatedAt: request.updatedAt.toISOString(),
       };
@@ -506,6 +564,14 @@ export async function updateBloodRequestStatus(
       }
     }
 
+    // Invalidate relevant caches
+    await CacheService.invalidateMultiple([
+      CacheKeys.endpointPattern('/api/requests'),
+      CacheKeys.resource('request', id),
+      CacheKeys.endpointPattern('/api/admin/stats'),
+      CacheKeys.endpointPattern('/api/users/me/analytics'),
+    ]);
+
     res.status(HTTP_STATUS.OK).json({
       _id: request._id.toString(),
       status: newStatus,
@@ -582,6 +648,14 @@ export async function deleteBloodRequest(
         ipAddress: req.ip || "unknown",
       });
     }
+
+    // Invalidate relevant caches
+    await CacheService.invalidateMultiple([
+      CacheKeys.endpointPattern('/api/requests'),
+      CacheKeys.resource('request', id),
+      CacheKeys.endpointPattern('/api/admin/stats'),
+      CacheKeys.endpointPattern('/api/users/me/analytics'),
+    ]);
 
     res.status(HTTP_STATUS.OK).json({
       message: "Blood request deleted successfully",
@@ -746,6 +820,13 @@ export async function respondToBloodRequest(
     ).catch((error) => {
       console.error("Failed to notify request owner:", error);
     });
+
+    // Invalidate relevant caches
+    await CacheService.invalidateMultiple([
+      CacheKeys.endpointPattern('/api/requests'),
+      CacheKeys.resource('request', requestId),
+      CacheKeys.endpointPattern('/api/users/me/responses'),
+    ]);
 
     res.status(HTTP_STATUS.CREATED).json({
       _id: donorResponse._id.toString(),
