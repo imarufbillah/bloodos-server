@@ -3,6 +3,7 @@ import {
   HTTP_STATUS,
   createInternalError,
 } from "../middleware/error.middleware.js";
+import { logger } from "../utils/logger.js";
 import type { SubmitContactFormInput } from "../validators/contact.validator.js";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@bloodos.app";

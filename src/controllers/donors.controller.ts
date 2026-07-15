@@ -12,6 +12,7 @@ import {
   createInternalError,
 } from "../middleware/error.middleware.js";
 import { notifyContactInfoRequested } from "../services/notification.service.js";
+import { logger } from "../utils/logger.js";
 import type {
   ListDonorsQuery,
   RequestContactParams,

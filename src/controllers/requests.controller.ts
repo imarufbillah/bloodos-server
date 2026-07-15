@@ -24,6 +24,7 @@ import {
 import { maskPhone, shouldMaskPhone } from "../utils/maskPhone.js";
 import { buildPaginatedResponse, calculateSkip } from "../utils/pagination.js";
 import { CacheService, CacheKeys } from "../services/cache.service.js";
+import { logger } from "../utils/logger.js";
 import type {
   CreateBloodRequestInput,
   UpdateBloodRequestInput,

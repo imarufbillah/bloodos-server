@@ -17,6 +17,7 @@ import {
 } from "../middleware/error.middleware.js";
 import { buildPaginatedResponse, calculateSkip } from "../utils/pagination.js";
 import { CacheService, CacheKeys } from "../services/cache.service.js";
+import { logger } from "../utils/logger.js";
 import type { UpdateProfileInput } from "../validators/user.validator.js";
 import type { CreateDonationInput } from "../validators/user.validator.js";
 import type {

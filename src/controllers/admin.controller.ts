@@ -12,6 +12,7 @@ import {
 } from "../middleware/error.middleware.js";
 import { logAdminAction } from "../services/adminActionLog.service.js";
 import { CacheService, CacheKeys } from "../services/cache.service.js";
+import { logger } from "../utils/logger.js";
 import {
   RequestStatus,
   Urgency,
