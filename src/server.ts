@@ -2,20 +2,32 @@ import { createApp } from "./app.js";
 import { config } from "./config/env.js";
 import { connectDB, closeDB } from "./config/db.js";
 import { createIndexes } from "./db/indexes.js";
+import { closeRedisConnection, isRedisReady, getRedisStatus } from "./config/redis.js";
 
 /**
  * Start the server
  * 
  * Process:
  * 1. Connect to MongoDB
- * 2. Create indexes (idempotent, safe to run on every boot)
- * 3. Start Express server
+ * 2. Initialize Redis (optional - server continues if Redis unavailable)
+ * 3. Create indexes (idempotent, safe to run on every boot)
+ * 4. Start Express server
  */
 const startServer = async (): Promise<void> => {
   try {
     // Connect to database
     const db = await connectDB();
     console.log("✅ Database connection established");
+
+    // Initialize Redis (import triggers connection)
+    // Redis errors are handled internally and won't crash the server
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // Give Redis time to connect
+    const redisStatus = getRedisStatus();
+    if (isRedisReady()) {
+      console.log("✅ Redis cache layer ready");
+    } else {
+      console.warn(`⚠️  Redis status: ${redisStatus} (server will continue without cache)`);
+    }
 
     // Create indexes (Req 8 - must run before accepting traffic)
     await createIndexes(db);
@@ -34,6 +46,7 @@ const startServer = async (): Promise<void> => {
 ║   Environment: ${config.nodeEnv.padEnd(43)}║
 ║   Port:        ${config.port.toString().padEnd(43)}║
 ║   Health:      http://localhost:${config.port}/health${' '.repeat(23)}║
+║   Cache:       ${(isRedisReady() ? 'Redis (enabled)' : 'Disabled').padEnd(43)}║
 ║                                                            ║
 ║   Ready to accept requests                                 ║
 ║                                                            ║
@@ -47,7 +60,13 @@ const startServer = async (): Promise<void> => {
       
       server.close(async () => {
         console.log("🔌 HTTP server closed");
+        
+        // Close Redis connection
+        await closeRedisConnection();
+        
+        // Close database connection
         await closeDB();
+        
         console.log("👋 Shutdown complete");
         process.exit(0);
       });
