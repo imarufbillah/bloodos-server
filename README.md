@@ -4,7 +4,7 @@
 
 **RESTful API backend for blood donation coordination in Bangladesh**
 
-[Live API](https://bloodos-server.onrender.com) • [Client Repo](https://github.com/imarufbillah/bloodos-client) • [Report Bug](https://github.com/imarufbillah/bloodos-server/issues)
+[Live API](https://bloodos-server.up.railway.app/health) • [Client Repo](https://github.com/imarufbillah/bloodos-client) • [Report Bug](https://github.com/imarufbillah/bloodos-server/issues)
 
 [![Node.js](https://img.shields.io/badge/Node.js-20.x-green?style=flat&logo=node.js)](https://nodejs.org/)
 [![Express](https://img.shields.io/badge/Express-5.2.1-black?style=flat&logo=express)](https://expressjs.com/)
