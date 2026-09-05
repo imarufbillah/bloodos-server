@@ -176,65 +176,141 @@ const seedSampleRequests = async (users: any[]) => {
       {
         _id: new ObjectId(),
         userId: requester._id,
-        patientName: "Abdul Malik",
-        bloodGroup: BloodGroup.A_POSITIVE,
+        patientName: "Dilruba Yasmin",
+        bloodGroup: BloodGroup.O_POSITIVE,
         unitsNeeded: 2,
-        hospitalName: "Dhaka Medical College Hospital",
-        hospitalAddress: "Bakshibazar, Dhaka-1000",
+        hospitalName: "National Institute of Cardiovascular Diseases (NICVD)",
+        hospitalAddress: "Sher-e-Bangla Nagar, Dhaka-1207",
         district: District.DHAKA,
         urgency: Urgency.CRITICAL,
         status: RequestStatus.OPEN,
-        neededByDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days from now
+        neededByDate: new Date(Date.now() + 4 * 60 * 60 * 1000), // in 4 hours
         contactPhone: "01712345678",
         additionalNotes:
-          "Patient scheduled for emergency surgery. Type and cross-match completed.",
-        createdAt: new Date(),
+          "Emergency coronary artery bypass grafting (CABG). Cross-matching sample is at blood bank.",
+        createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30 mins ago
         updatedAt: new Date(),
       },
       {
         _id: new ObjectId(),
         userId: requester._id,
-        patientName: "Rina Begum",
-        bloodGroup: BloodGroup.O_POSITIVE,
+        patientName: "Tariqul Islam",
+        bloodGroup: BloodGroup.B_POSITIVE,
         unitsNeeded: 3,
-        hospitalName: "Chittagong Medical College",
-        hospitalAddress: "Panchlaish, Chittagong-4203",
+        hospitalName: "Chittagong Medical College Hospital (CMCH)",
+        hospitalAddress: "57 K.B. Fazlul Kader Road, Panchlaish, Chittagong",
         district: District.CHITTAGONG,
+        urgency: Urgency.CRITICAL,
+        status: RequestStatus.OPEN,
+        neededByDate: new Date(Date.now() + 8 * 60 * 60 * 1000), // in 8 hours
+        contactPhone: "01819876543",
+        additionalNotes:
+          "Severe polytrauma following highway road accident. Active internal hemorrhage in OT-2.",
+        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+        updatedAt: new Date(),
+      },
+      {
+        _id: new ObjectId(),
+        userId: requester._id,
+        patientName: "Nusrat Jahan",
+        bloodGroup: BloodGroup.A_NEGATIVE,
+        unitsNeeded: 2,
+        hospitalName: "Sylhet MAG Osmani Medical College Hospital",
+        hospitalAddress: "Medical Road, Kazir Bazar, Sylhet-3100",
+        district: District.SYLHET,
         urgency: Urgency.URGENT,
         status: RequestStatus.OPEN,
-        neededByDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
-        contactPhone: "01812345679",
-        additionalNotes: "Required for post-operative recovery.",
-        createdAt: new Date(),
+        neededByDate: new Date(Date.now() + 18 * 60 * 60 * 1000), // in 18 hours
+        contactPhone: "01911223344",
+        additionalNotes:
+          "Post-partum hemorrhage in gynecology ward 4. Rh-negative blood urgently required.",
+        createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
         updatedAt: new Date(),
       },
       {
         _id: new ObjectId(),
         userId: requester._id,
-        patientName: "Sumon Ahmed",
-        bloodGroup: BloodGroup.B_NEGATIVE,
+        patientName: "Master Rafan Hossain",
+        bloodGroup: BloodGroup.AB_POSITIVE,
         unitsNeeded: 1,
-        hospitalName: "Sylhet MAG Osmani Medical College",
-        hospitalAddress: "Sylhet-3100",
-        district: District.SYLHET,
+        hospitalName: "Rajshahi Medical College Hospital (RMCH)",
+        hospitalAddress: "Laxmipur, Rajshahi-6000",
+        district: District.RAJSHAHI,
+        urgency: Urgency.URGENT,
+        status: RequestStatus.OPEN,
+        neededByDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // in 24 hours
+        contactPhone: "01733445566",
+        additionalNotes:
+          "Pediatric Thalassemia routine exchange transfusion. Washed RBC required.",
+        createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
+        updatedAt: new Date(),
+      },
+      {
+        _id: new ObjectId(),
+        userId: requester._id,
+        patientName: "Al-Amin Gazi",
+        bloodGroup: BloodGroup.O_NEGATIVE,
+        unitsNeeded: 2,
+        hospitalName: "Khulna Medical College Hospital",
+        hospitalAddress: "Boyra Main Road, Khulna-9000",
+        district: District.KHULNA,
+        urgency: Urgency.CRITICAL,
+        status: RequestStatus.OPEN,
+        neededByDate: new Date(Date.now() + 6 * 60 * 60 * 1000), // in 6 hours
+        contactPhone: "01677889900",
+        additionalNotes:
+          "Emergency gastrointestinal bleeding in ICU. Rare O-negative whole blood needed immediately.",
+        createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago
+        updatedAt: new Date(),
+      },
+      {
+        _id: new ObjectId(),
+        userId: requester._id,
+        patientName: "Shahanara Parvin",
+        bloodGroup: BloodGroup.A_POSITIVE,
+        unitsNeeded: 2,
+        hospitalName: "Mymensingh Medical College Hospital (MMCH)",
+        hospitalAddress: "Charpara, Mymensingh-2200",
+        district: District.MYMENSINGH,
         urgency: Urgency.MODERATE,
         status: RequestStatus.OPEN,
-        neededByDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days from now
-        contactPhone: "01912345680",
-        additionalNotes: "Routine blood replacement for anemia treatment.",
-        createdAt: new Date(),
+        neededByDate: new Date(Date.now() + 48 * 60 * 60 * 1000), // in 48 hours
+        contactPhone: "01555667788",
+        additionalNotes:
+          "Elective oncological resection scheduled for Monday morning. Pre-operative reservation.",
+        createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000), // 12 hours ago
         updatedAt: new Date(),
       },
     ];
 
-    // Insert only if they don't exist
+    // Check by patientName and district to prevent duplicate inserts on re-runs
     for (const request of sampleRequests) {
-      const existing = await requestsCollection.findOne({ _id: request._id });
+      const existing = await requestsCollection.findOne({
+        patientName: request.patientName,
+        district: request.district,
+      });
       if (!existing) {
         await requestsCollection.insertOne(request);
-        console.log(`  ✓ Created request for: ${request.patientName}`);
+        console.log(`  ✓ Created request for: ${request.patientName} (${request.bloodGroup}, ${request.district})`);
       } else {
-        console.log(`  ℹ Request already exists for: ${request.patientName}`);
+        // Update to ensure neededByDate and status are fresh
+        await requestsCollection.updateOne(
+          { _id: existing._id },
+          {
+            $set: {
+              neededByDate: request.neededByDate,
+              status: RequestStatus.OPEN,
+              urgency: request.urgency,
+              unitsNeeded: request.unitsNeeded,
+              hospitalName: request.hospitalName,
+              hospitalAddress: request.hospitalAddress,
+              contactPhone: request.contactPhone,
+              additionalNotes: request.additionalNotes,
+              updatedAt: new Date(),
+            },
+          }
+        );
+        console.log(`  ✓ Refreshed existing request for: ${request.patientName} (${request.bloodGroup}, ${request.district})`);
       }
     }
   } catch (error) {
