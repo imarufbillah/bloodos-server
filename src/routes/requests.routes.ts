@@ -10,6 +10,7 @@ import { validate } from "../middleware/validate.middleware.js";
 import { CacheStrategies } from "../middleware/cache.middleware.js";
 import {
   createBloodRequestSchema,
+  updateBloodRequestSchema,
   updateRequestStatusSchema,
   listRequestsQuerySchema,
 } from "../validators/request.validator.js";
@@ -22,6 +23,7 @@ import {
   listBloodRequests,
   getBloodRequestById,
   getMyBloodRequests,
+  updateBloodRequest,
   updateBloodRequestStatus,
   deleteBloodRequest,
   respondToBloodRequest,
@@ -138,6 +140,19 @@ router.patch(
   requireAuth,
   validate(updateRequestStatusSchema),
   updateBloodRequestStatus,
+);
+
+/**
+ * PATCH /api/requests/:id
+ * Update mutable blood request details (hospital, notes, urgency, etc.)
+ * - Auth required
+ * - Owner or Admin only
+ */
+router.patch(
+  "/:id",
+  requireAuth,
+  validate(updateBloodRequestSchema),
+  updateBloodRequest,
 );
 
 /**

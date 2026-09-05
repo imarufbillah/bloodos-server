@@ -462,6 +462,86 @@ export async function getMyBloodRequests(
 }
 
 // ============================================================================
+// Update Blood Request Details (PATCH /api/requests/:id)
+// ============================================================================
+
+/**
+ * Update mutable details of a blood request
+ * - Owner or Admin only
+ * - Allows modifying patientName, hospitalName, hospitalAddress, district, urgency, neededByDate, contactPhone, additionalNotes, unitsNeeded
+ */
+export async function updateBloodRequest(
+  req: Request<{ id: string }, {}, UpdateBloodRequestInput>,
+  res: Response,
+): Promise<void> {
+  const sessionUser = req.sessionUser!;
+  const { id } = req.params;
+  const body = req.body;
+
+  if (!ObjectId.isValid(id)) {
+    throw createValidationError("Invalid request ID format");
+  }
+
+  try {
+    const collection = getBloodRequestsCollection();
+    const request = await collection.findOne({ _id: new ObjectId(id) });
+
+    if (!request) {
+      throw createNotFoundError("Blood request", id);
+    }
+
+    const isAdmin = sessionUser.role === "admin";
+    const isOwner = request.userId.toString() === sessionUser.id;
+
+    if (!isOwner && !isAdmin) {
+      throw createForbiddenError(
+        "You do not have permission to update this request",
+        { requestId: id },
+      );
+    }
+
+    const updateFields: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+
+    if (body.patientName !== undefined) updateFields["patientName"] = body.patientName;
+    if (body.bloodGroup !== undefined) updateFields["bloodGroup"] = body.bloodGroup;
+    if (body.unitsNeeded !== undefined) updateFields["unitsNeeded"] = body.unitsNeeded;
+    if (body.hospitalName !== undefined) updateFields["hospitalName"] = body.hospitalName;
+    if (body.hospitalAddress !== undefined) updateFields["hospitalAddress"] = body.hospitalAddress;
+    if (body.district !== undefined) updateFields["district"] = body.district;
+    if (body.urgency !== undefined) updateFields["urgency"] = body.urgency;
+    if (body.neededByDate !== undefined) updateFields["neededByDate"] = new Date(body.neededByDate);
+    if (body.contactPhone !== undefined) updateFields["contactPhone"] = body.contactPhone;
+    if (body.additionalNotes !== undefined) updateFields["additionalNotes"] = body.additionalNotes;
+
+    await collection.updateOne(
+      { _id: request._id },
+      { $set: updateFields },
+    );
+
+    // Invalidate relevant caches
+    await CacheService.invalidateMultiple([
+      CacheKeys.endpointPattern("/api/requests"),
+      CacheKeys.resource("request", id),
+      CacheKeys.endpointPattern("/api/admin/stats"),
+      CacheKeys.endpointPattern("/api/users/me/analytics"),
+    ]);
+
+    const updated = await collection.findOne({ _id: request._id });
+
+    res.status(HTTP_STATUS.OK).json({
+      success: true,
+      message: "Blood request updated successfully",
+      data: updated,
+    });
+  } catch (error) {
+    logger.error(`Error updating blood request ${id}:`, error);
+    throw error;
+  }
+}
+
+// ============================================================================
 // Update Blood Request Status (PATCH /api/requests/:id/status)
 // ============================================================================
 
