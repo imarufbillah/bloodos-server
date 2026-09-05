@@ -138,9 +138,26 @@ export const requireAuth = asyncHandler(
     // IMPORTANT: Check current ban status from database
     // Session data can be stale if user was banned after login
     const usersCollection = getUsersCollection();
-    const currentUser = await usersCollection.findOne({
-      _id: new ObjectId(sessionData.user.id),
-    });
+    let currentUser = null;
+
+    if (ObjectId.isValid(sessionData.user.id)) {
+      currentUser = await usersCollection.findOne({
+        $or: [
+          { _id: new ObjectId(sessionData.user.id) },
+          { id: sessionData.user.id },
+        ],
+      });
+    } else {
+      currentUser = await usersCollection.findOne({
+        id: sessionData.user.id,
+      });
+    }
+
+    if (!currentUser && sessionData.user.email) {
+      currentUser = await usersCollection.findOne({
+        email: sessionData.user.email,
+      });
+    }
 
     if (!currentUser) {
       throw createUnauthorizedError("User not found", ERROR_CODES.UNAUTHORIZED);
@@ -217,9 +234,26 @@ export const optionalAuth = asyncHandler(
 
       // Check current ban status from database
       const usersCollection = getUsersCollection();
-      const currentUser = await usersCollection.findOne({
-        _id: new ObjectId(sessionData.user.id),
-      });
+      let currentUser = null;
+
+      if (ObjectId.isValid(sessionData.user.id)) {
+        currentUser = await usersCollection.findOne({
+          $or: [
+            { _id: new ObjectId(sessionData.user.id) },
+            { id: sessionData.user.id },
+          ],
+        });
+      } else {
+        currentUser = await usersCollection.findOne({
+          id: sessionData.user.id,
+        });
+      }
+
+      if (!currentUser && sessionData.user.email) {
+        currentUser = await usersCollection.findOne({
+          email: sessionData.user.email,
+        });
+      }
 
       // Skip if user not found or banned
       if (currentUser && !currentUser.banned) {
